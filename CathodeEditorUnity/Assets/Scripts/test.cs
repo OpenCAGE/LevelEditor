@@ -1,11 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Alien_Isolation_Mod_Tools;
 using System.Linq;
-using AlienPAK;
 using System.IO;
 using System;
+using CATHODE;
+using CathodeLib;
 
 public class test : MonoBehaviour
 {
