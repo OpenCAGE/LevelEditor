@@ -21,7 +21,10 @@ public class test2 : MonoBehaviour
 
     private GameObject LoadModel(int EntryIndex)
     {
+        Debug.Log("---");
+        Debug.Log("LOADING MODEL AT INDEX " + EntryIndex);
         alien_pak_model_entry ChunkArray = Result.ModelsPAK.Models[EntryIndex];
+        Debug.Log("CHUNK COUNT: " + ChunkArray.Header.ChunkCount);
 
         GameObject ThisModel = new GameObject();
 
@@ -36,10 +39,10 @@ public class test2 : MonoBehaviour
 
             BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Chunks[ChunkIndex]));
 
-            //dunno if this bit is right
             int VertexArrayCount = 1;
-            List<alien_vertex_buffer_format_element> Elements = VertexInput.Elements; 
-            List<int> ElementCounts = new List<int>(new int[VertexInput.Elements.Count]);
+            alien_vertex_buffer_format_element[] Elements = new alien_vertex_buffer_format_element[256];
+            Elements[0] = VertexInput.Elements[0];
+            int[] ElementCounts = new int[256];
             for (int ElementIndex = 0; ElementIndex < VertexInput.ElementCount; ++ElementIndex)
             {
                 alien_vertex_buffer_format_element Element = VertexInput.Elements[ElementIndex];
@@ -49,7 +52,8 @@ public class test2 : MonoBehaviour
                 }
                 ElementCounts[VertexArrayCount - 1]++;
             }
-            //--
+
+            //Debug.Log(VertexArrayCount);
 
             List<UInt16> InIndices = new List<UInt16>();
             List<Vector3> InVertices = new List<Vector3>();
@@ -57,9 +61,17 @@ public class test2 : MonoBehaviour
 
             for (int VertexArrayIndex = 0; VertexArrayIndex < VertexArrayCount; ++VertexArrayIndex)
             {
+                Debug.Log(Stream.BaseStream.Position + " - " + Stream.BaseStream.Length);
+
                 int ElementCount = ElementCounts[VertexArrayIndex];
                 alien_vertex_buffer_format_element Inputs = Elements[VertexArrayIndex];
-                if (Inputs.ArrayIndex == 0xFF) InIndices = Utilities.ConsumeArray<UInt16>(Stream, Model.IndexCount);
+                if (Inputs.ArrayIndex == 0xFF)
+                {
+                    for (int i = 0; i < Model.IndexCount; i++)
+                    {
+                        InIndices.Add(Stream.ReadUInt16());
+                    }
+                }
                 else
                 {
                     for (int VertexIndex = 0; VertexIndex < Model.VertexCount; ++VertexIndex)
@@ -71,11 +83,11 @@ public class test2 : MonoBehaviour
                             {
                                 case alien_vertex_input_type.AlienVertexInputType_v3:
                                     {
-                                        V3 Value = Utilities.Consume<V3>(Stream);
+                                        Vector3 Value = new Vector3(Stream.ReadSingle(), Stream.ReadSingle(), Stream.ReadSingle());
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(new Vector3(Value.x, Value.y, Value.z));
+                                                InNormals.Add(Value);
                                                 break;
                                             case alien_vertex_input_slot.AlienVertexInputSlot_T:
                                                 break;
@@ -98,7 +110,7 @@ public class test2 : MonoBehaviour
 
                                 case alien_vertex_input_type.AlienVertexInputType_v4u8_i:
                                     {
-                                        V4 Value = new V4(Stream.ReadBytes(4));
+                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_BI:
@@ -109,9 +121,8 @@ public class test2 : MonoBehaviour
 
                                 case alien_vertex_input_type.AlienVertexInputType_v4u8_f:
                                     {
-                                        V4 Value = new V4(Stream.ReadBytes(4));
-                                        Value = Value / 255.0f;
-
+                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
+                                        Value /= 255.0f;
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_BW:
@@ -124,10 +135,8 @@ public class test2 : MonoBehaviour
 
                                 case alien_vertex_input_type.AlienVertexInputType_v2s16_UV:
                                     {
-                                        List<Int16> Values = Utilities.ConsumeArray<Int16>(Stream, 2);
-                                        V2 Value = new V2(Values[0], Values[1]);
-                                        Value = Value / 2048.0f;
-
+                                        Vector2 Value = new Vector2(Stream.ReadInt16(), Stream.ReadInt16());
+                                        Value /= 2048.0f;
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_UV:
@@ -138,14 +147,12 @@ public class test2 : MonoBehaviour
 
                                 case alien_vertex_input_type.AlienVertexInputType_v4s16_f:
                                     {
-                                        List<Int16> Values = Utilities.ConsumeArray<Int16>(Stream, 4);
-                                        V4 Value = new V4(Values[0], Values[1], Values[2], Values[3]);
-                                        Value = Value / (float)Int16.MaxValue;
-
+                                        Vector4 Value = new Vector4(Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16());
+                                        Value /= (float)Int16.MaxValue;
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_P:
-                                                InVertices.Add(new Vector3(Value.x, Value.y, Value.z));
+                                                InVertices.Add(Value);
                                                 break;
                                         }
                                         break;
@@ -153,14 +160,13 @@ public class test2 : MonoBehaviour
 
                                 case alien_vertex_input_type.AlienVertexInputType_v2s16_f:
                                     {
-                                        V4 Value = new V4(Stream.ReadBytes(4));
-                                        Value = Value / (float)Byte.MaxValue - 0.5f;
-                                        Value.Normalise();
-
+                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
+                                        Value /= (float)byte.MaxValue - 0.5f;
+                                        Value.Normalize();
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(new Vector3(Value.x, Value.y, Value.z));
+                                                InNormals.Add(Value);
                                                 break;
                                             case alien_vertex_input_slot.AlienVertexInputSlot_T:
                                                 break;
@@ -173,13 +179,13 @@ public class test2 : MonoBehaviour
                         }
                     }
                 }
-                Utilities.Align(Stream, 16);
+                Align(Stream, 16);
             }
 
             GameObject ThisModelPart = new GameObject();
             ThisModelPart.transform.parent = ThisModel.transform;
             ThisModel.name = Result.ModelsBIN.ModelFilePaths[BINIndex];
-            ThisModelPart.name = Result.ModelsBIN.ModelLODPartNames[BINIndex]; //huh? aren't there multiple part names?
+            ThisModelPart.name = Result.ModelsBIN.ModelLODPartNames[BINIndex] + "(" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")"; 
 
             if (InVertices.Count == 0) continue;
 
@@ -210,7 +216,7 @@ public class test2 : MonoBehaviour
 
     // Update is called once per frame
     GameObject currentMesh = null;
-    int currentMeshIndex = 0;
+    int currentMeshIndex = 50;
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.P))
@@ -218,6 +224,14 @@ public class test2 : MonoBehaviour
             if (currentMesh != null) Destroy(currentMesh);
             currentMesh = LoadModel(currentMeshIndex);
             currentMeshIndex++;
+        }
+    }
+
+    public void Align(BinaryReader reader, int val)
+    {
+        while (reader.BaseStream.Position % val != 0)
+        {
+            reader.ReadByte();
         }
     }
 }
