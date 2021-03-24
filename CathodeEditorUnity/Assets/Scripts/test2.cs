@@ -9,86 +9,63 @@ using System.Linq;
 
 public class test2 : MonoBehaviour
 {
-    alien_level Result = new alien_level();
+    [SerializeField] private UnityEngine.UI.Image uiSprite = null;
 
-    CATHODE.CommandsPAK commandsPAK;
-    CATHODE.RenderableElementsBIN redsBIN;
+    alien_level Result = new alien_level();
 
     void Start()
     {
-        string levelPath = @"C:\Users\MattFiler\Downloads\BSP_TORRENS\BSP_TORRENS";
+        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\BSP_TORRENS";
+
+        Result.GlobalTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        Result.LevelTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
 
         Result.ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
         Result.ModelsMTL = TestProject.File_Handlers.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL", Result.ModelsCST);
         Result.ModelsBIN = TestProject.File_Handlers.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
         Result.ModelsPAK = TestProject.File_Handlers.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
 
-
-        commandsPAK = new CATHODE.CommandsPAK(levelPath + @"\WORLD\COMMANDS.PAK");
-        redsBIN = new CATHODE.RenderableElementsBIN(levelPath + @"\WORLD\REDS.BIN");
-        RecursiveLoad(commandsPAK.EntryPoints[0], new PosAndRot());
+        Result.ShadersPAK = TestProject.File_Handlers.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
+        //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
+        Result.ShadersIDXRemap = TestProject.File_Handlers.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
     }
 
-    private void RecursiveLoad(CathodeFlowgraph flowgraph, PosAndRot stackedTransform)
+    private void LoadTexture(int EntryIndex)
     {
-        List<CathodeNodeEntity> models = flowgraph.nodes; //TODO: reimplement model filtering from test.cs (nodedb broken)
-        foreach (CathodeNodeEntity node in models)
+        alien_textures AlienTextures = Result.LevelTextures; //todo; pass as param
+        if (EntryIndex < 0 || EntryIndex >= AlienTextures.PAK.Header.EntryCount)
         {
-            PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            LoadREDS(node, flowgraph, thisNodePos);
+            Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
+            return;
         }
 
-        foreach (CathodeNodeEntity node in flowgraph.nodes)
-        {
-            CathodeFlowgraph nextCall = commandsPAK.GetFlowgraph(node.nodeType);
-            if (nextCall == null) continue;
-            Debug.Log(GetTransform(node).position);
-            RecursiveLoad(nextCall, stackedTransform + GetTransform(node));
-        }
-    }
-    private PosAndRot GetTransform(CathodeNodeEntity node)
-    {
-        PosAndRot toReturn = new PosAndRot();
-        foreach (CathodeParameterReference paramRef in node.nodeParameterReferences)
-        {
-            CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
-            if (param == null) continue;
-            if (param.dataType != CathodeDataType.POSITION) continue;
-            Vec3 position = ((CathodeTransform)param).position;
-            Vec3 rotation = ((CathodeTransform)param).rotation;
-            toReturn.position = new Vector3(position.x, position.y, position.z);
-            toReturn.rotation = new Vector3(rotation.x, rotation.y, rotation.z);
-        }
-        return toReturn;
-    }
-    private void LoadREDS(CathodeNodeEntity node, CathodeFlowgraph flowgraph, PosAndRot thisNodePos)
-    {
-        //If has a renderable element, try create it
-        byte[] resourceID = GetResource(node);
-        if (resourceID == null) return;
-        CathodeResourceReference resRef = flowgraph.GetResourceReferenceByID(resourceID);
-        if (resRef == null || resRef.entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) return;
-        List<RenderableElement> redsList = new List<RenderableElement>();
-        for (int p = 0; p < resRef.entryCountREDS; p++) redsList.Add(redsBIN.GetRenderableElement(resRef.entryIndexREDS + p));
-        if (resRef.entryCountREDS != redsList.Count || redsList.Count == 0) return; //TODO: handle this nicer
-        foreach (RenderableElement renderable in redsList)
-        {
-            LoadModel(renderable.model_index, thisNodePos);
-        }
-    }
-    private byte[] GetResource(CathodeNodeEntity node)
-    {
-        foreach (CathodeParameterReference paramRef in node.nodeParameterReferences)
-        {
-            CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
-            if (param == null) continue;
-            if (param.dataType != CathodeDataType.SHORT_GUID) continue;
-            return ((CathodeResource)param).resourceID;
-        }
-        return null;
+        alien_pak_entry Entry = AlienTextures.PAK.Entries[EntryIndex];
+        alien_texture_bin_texture InTexture = AlienTextures.BIN.Textures[Entry.BINIndex];
+
+        //ASSUMES V2!!
+
+        if (InTexture.Length_V2 == 0) return;
+
+        Debug.Log(InTexture.Size_V2[0]);
+        Debug.Log(InTexture.Size_V2[1]);
+        Debug.Log(InTexture.Length_V2);
+
+        Texture2D texture = new Texture2D(InTexture.Size_V2[0], InTexture.Size_V2[1], UnityEngine.TextureFormat.BC7, false);
+        texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
+        //texture.mipmapCount = (int)InTexture.MipLevelsV2;
+        BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.PAK.DataStart));
+        tempReader.BaseStream.Position = Entry.Offset;
+        texture.LoadRawTextureData(tempReader.ReadBytes(InTexture.Length_V2));
+        texture.Apply();
+        tempReader.Close();
+
+        Debug.Log(texture.format);
+        Debug.Log((alien_texture_format)InTexture.Format);
+
+        if (uiSprite != null) uiSprite.sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0, 0));
     }
 
-    private GameObject LoadModel(int EntryIndex, PosAndRot thisNodePos)
+    private GameObject LoadModel(int EntryIndex)
     {
         if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
         {
@@ -99,14 +76,41 @@ public class test2 : MonoBehaviour
         alien_pak_model_entry ChunkArray = Result.ModelsPAK.Models[EntryIndex];
 
         GameObject ThisModel = new GameObject();
-        ThisModel.transform.position = thisNodePos.position;
-        ThisModel.transform.rotation = Quaternion.Euler(thisNodePos.rotation);
 
         for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.ChunkCount; ++ChunkIndex)
         {
             int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
             alien_model_bin_model_info Model = Result.ModelsBIN.Models[BINIndex];
             if (Model.BlockSize == 0) continue;
+
+            /*
+            alien_mtl_material InMaterial = Result.ModelsMTL.Materials[Model.MaterialLibraryIndex];
+            Debug.Log(InMaterial.UberShaderIndex);
+            Debug.Log(Result.ShadersIDXRemap.Datas.Count);
+            int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
+            alien_shader_pak_shader Shader = Result.ShadersPAK.Shaders[RemappedIndex];
+
+            int TextureReferenceCount = Result.ModelsMTL.TextureReferenceCounts[Model.MaterialLibraryIndex];
+            int TableIndex = 11;
+            byte[] PairFromSlotTable = Shader.Tables[TableIndex];
+            int PairFromSlotTableSize = Shader.Header.TableEntryCounts[TableIndex];
+            for (int SlotIndex = 0; SlotIndex < PairFromSlotTableSize; ++SlotIndex)
+            {
+                int PairIndex = PairFromSlotTable[SlotIndex];
+                // NOTE: PairIndex == 255 means no index.
+                if (PairIndex < TextureReferenceCount)
+                {
+                    alien_mtl_texture_reference Pair = InMaterial.TextureReferences[PairIndex];
+                    alien_textures Textures = GetTexturesTable(Pair.TextureTableIndex);
+                    int TextureIndex = Pair.TextureIndex;
+                    alien_pak_entry Entry = Textures.PAK.Entries[TextureIndex];
+                    alien_texture_bin_texture InTexture = Textures.BIN.Textures[Entry.BINIndex];
+                    string TextureFilePath = Textures.BIN.TextureFilePaths[Entry.BINIndex];
+                    Debug.Log(TextureFilePath);
+                    alien_texture_format AlienFormat = (alien_texture_format)InTexture.Format;
+                }
+            }
+            */
 
             alien_vertex_buffer_format VertexInput = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
             alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
@@ -268,26 +272,37 @@ public class test2 : MonoBehaviour
             thisMesh.RecalculateNormals();
             thisMesh.RecalculateTangents();
             ThisModelPart.AddComponent<MeshFilter>().mesh = thisMesh;
-            ThisModelPart.AddComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
+            ThisModelPart.AddComponent<MeshRenderer>().material = new Material(UnityEngine.Shader.Find("Diffuse"));
 
         }
 
         return ThisModel;
     }
 
-    /*
+    private alien_textures GetTexturesTable(int TableIndex)
+    {
+        switch (TableIndex)
+        {
+            case 0:
+                return Result.LevelTextures;
+            case 2:
+                return Result.GlobalTextures;
+        }
+        return new alien_textures();
+    }
+
     GameObject currentMesh = null;
-    int currentMeshIndex = 550;
+    int currentMeshIndex = 850;
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.P))
         {
             if (currentMesh != null) Destroy(currentMesh);
-            currentMesh = LoadModel(currentMeshIndex);
+            //currentMesh = LoadModel(currentMeshIndex);
+            LoadTexture(currentMeshIndex);
             currentMeshIndex++;
         }
     }
-    */
 
     public void Align(BinaryReader reader, int val)
     {
