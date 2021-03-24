@@ -42,26 +42,66 @@ public class test2 : MonoBehaviour
         alien_pak_entry Entry = AlienTextures.PAK.Entries[EntryIndex];
         alien_texture_bin_texture InTexture = AlienTextures.BIN.Textures[Entry.BINIndex];
 
-        //ASSUMES V2!!
+        //ASSUMES V1!!
 
-        if (InTexture.Length_V2 == 0) return;
+        if (InTexture.Length_V1 == 0)
+        {
+            Debug.LogWarning("LENGTH ZERO - NOT LOADING");
+            return;
+        }
+        if (InTexture.Type == 7) 
+        {
+            Debug.LogWarning("CUBEMAP! NOT CURRENTLY SUPPORTED");
+            return;
+        }
 
-        Debug.Log(InTexture.Size_V2[0]);
-        Debug.Log(InTexture.Size_V2[1]);
-        Debug.Log(InTexture.Length_V2);
+        UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
+        switch (InTexture.Format)
+        {
+            case alien_texture_format.Alien_R32G32B32A32_SFLOAT:
+                format = UnityEngine.TextureFormat.RGBA32;
+                break;
+            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM:
+                format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
+                break;
+            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM_0:
+                format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
+                break;
+            case alien_texture_format.Alien_FORMAT_SIGNED_DISTANCE_FIELD:
+                Debug.LogWarning("SDF! NOT LOADED");
+                return;
+            case alien_texture_format.Alien_FORMAT_R8:
+                format = UnityEngine.TextureFormat.R8;
+                break;
+            case alien_texture_format.Alien_FORMAT_BC1:
+                Debug.LogWarning("BC1! NOT LOADED");
+                return;
+            case alien_texture_format.Alien_FORMAT_BC2:
+                Debug.LogWarning("BC2! NOT LOADED");
+                return;
+            case alien_texture_format.Alien_FORMAT_BC5:
+                format = UnityEngine.TextureFormat.BC5;
+                break;
+            case alien_texture_format.Alien_FORMAT_BC3:
+                Debug.LogWarning("BC3! NOT LOADED");
+                return;
+            case alien_texture_format.Alien_FORMAT_BC7:
+                format = UnityEngine.TextureFormat.BC7;
+                break;
+            case alien_texture_format.Alien_FORMAT_R8G8:
+                Debug.LogWarning("R8G8! NOT LOADED");
+                return;
+        }
 
-        Texture2D texture = new Texture2D(InTexture.Size_V2[0], InTexture.Size_V2[1], UnityEngine.TextureFormat.BC7, false);
+        Texture2D texture = new Texture2D(InTexture.Size_V1[0], InTexture.Size_V1[1], format, InTexture.MipLevelsV1, true);
         texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
-        //texture.mipmapCount = (int)InTexture.MipLevelsV2;
         BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.PAK.DataStart));
         tempReader.BaseStream.Position = Entry.Offset;
-        texture.LoadRawTextureData(tempReader.ReadBytes(InTexture.Length_V2));
-        texture.Apply();
+        texture.LoadRawTextureData(tempReader.ReadBytes(InTexture.Length_V1));
         tempReader.Close();
+        texture.Apply();
 
-        Debug.Log(texture.format);
-        Debug.Log((alien_texture_format)InTexture.Format);
-
+        uiSprite.preserveAspect = true;
         if (uiSprite != null) uiSprite.sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0, 0));
     }
 
@@ -292,7 +332,7 @@ public class test2 : MonoBehaviour
     }
 
     GameObject currentMesh = null;
-    int currentMeshIndex = 850;
+    int currentMeshIndex = 500;
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.P))
