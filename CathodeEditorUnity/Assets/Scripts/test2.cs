@@ -28,12 +28,16 @@ public class test2 : MonoBehaviour
         Result.ShadersPAK = TestProject.File_Handlers.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
         Result.ShadersIDXRemap = TestProject.File_Handlers.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
+
+        for (int i = 0; i < Result.ModelsPAK.Models.Count; i++)
+        {
+            LoadModel(i);
+        }
     }
 
     private Texture2D LoadTexture(int EntryIndex, int paktype = 0)
     {
-        alien_textures AlienTextures = Result.LevelTextures; //todo; pass as param
-        if (paktype == 2) AlienTextures = Result.GlobalTextures;
+        alien_textures AlienTextures = GetTexturesTable(paktype); 
         if (EntryIndex < 0 || EntryIndex >= AlienTextures.PAK.Header.EntryCount)
         {
             Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
@@ -75,23 +79,23 @@ public class test2 : MonoBehaviour
                 format = UnityEngine.TextureFormat.R8;
                 break;
             case alien_texture_format.Alien_FORMAT_BC1:
-                Debug.LogWarning("BC1! NOT LOADED");
-                return null;
+                format = UnityEngine.TextureFormat.DXT1;
+                break;
             case alien_texture_format.Alien_FORMAT_BC2:
                 Debug.LogWarning("BC2! NOT LOADED");
                 return null;
             case alien_texture_format.Alien_FORMAT_BC5:
-                format = UnityEngine.TextureFormat.BC5;
+                format = UnityEngine.TextureFormat.BC5; //Is this correct?
                 break;
             case alien_texture_format.Alien_FORMAT_BC3:
-                Debug.LogWarning("BC3! NOT LOADED");
-                return null;
+                format = UnityEngine.TextureFormat.DXT5;
+                break;
             case alien_texture_format.Alien_FORMAT_BC7:
                 format = UnityEngine.TextureFormat.BC7;
                 break;
             case alien_texture_format.Alien_FORMAT_R8G8:
-                Debug.LogWarning("R8G8! NOT LOADED");
-                return null;
+                format = UnityEngine.TextureFormat.BC5; // is this correct?
+                break;
         }
 
         Texture2D texture = new Texture2D(InTexture.Size_V1[0], InTexture.Size_V1[1], format, InTexture.MipLevelsV1, true);
@@ -121,32 +125,6 @@ public class test2 : MonoBehaviour
             int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
             alien_model_bin_model_info Model = Result.ModelsBIN.Models[BINIndex];
             if (Model.BlockSize == 0) continue;
-            
-            //Debug.Log(InMaterial.UberShaderIndex);
-            //Debug.Log(Result.ShadersIDXRemap.Datas.Count);
-            //int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
-            //alien_shader_pak_shader Shader = Result.ShadersPAK.Shaders[RemappedIndex];
-            //
-            //int TextureReferenceCount = Result.ModelsMTL.TextureReferenceCounts[Model.MaterialLibraryIndex];
-            //int TableIndex = 11;
-            //byte[] PairFromSlotTable = Shader.Tables[TableIndex];
-            //int PairFromSlotTableSize = Shader.Header.TableEntryCounts[TableIndex];
-            //for (int SlotIndex = 0; SlotIndex < PairFromSlotTableSize; ++SlotIndex)
-            //{
-            //    int PairIndex = PairFromSlotTable[SlotIndex];
-            //    // NOTE: PairIndex == 255 means no index.
-            //    if (PairIndex < TextureReferenceCount)
-            //    {
-            //        alien_mtl_texture_reference Pair = InMaterial.TextureReferences[PairIndex];
-            //        alien_textures Textures = GetTexturesTable(Pair.TextureTableIndex);
-            //        int TextureIndex = Pair.TextureIndex;
-            //        alien_pak_entry Entry = Textures.PAK.Entries[TextureIndex];
-            //        alien_texture_bin_texture InTexture = Textures.BIN.Textures[Entry.BINIndex];
-            //        string TextureFilePath = Textures.BIN.TextureFilePaths[Entry.BINIndex];
-            //        Debug.Log(TextureFilePath);
-            //        alien_texture_format AlienFormat = (alien_texture_format)InTexture.Format;
-            //    }
-            //}
 
             alien_vertex_buffer_format VertexInput = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
             alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
@@ -177,6 +155,7 @@ public class test2 : MonoBehaviour
             List<Vector2> InUVs2 = new List<Vector2>();
             List<Vector2> InUVs3 = new List<Vector2>();
             List<Vector2> InUVs7 = new List<Vector2>();
+            List<BoneWeight1> InBoneWeights = new List<BoneWeight1>();
 
             for (int VertexArrayIndex = 0; VertexArrayIndex < Elements.Count; ++VertexArrayIndex)
             {
@@ -321,18 +300,6 @@ public class test2 : MonoBehaviour
             ThisModel.name = Result.ModelsBIN.ModelFilePaths[BINIndex];
             ThisModelPart.name = Result.ModelsBIN.ModelLODPartNames[BINIndex] + "(" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
 
-
-            //TEST
-            List<alien_mtl_texture_reference> refs = Result.ModelsMTL.Materials[Model.MaterialLibraryIndex].TextureReferences.ToList();
-            Texture testTex = null;
-            for (int i = 0; i < refs.Count; i++)
-            {
-                if (refs[i].TextureTableIndex != 0 && refs[i].TextureTableIndex != 2) continue;
-                testTex = LoadTexture(refs[i].TextureIndex, refs[i].TextureTableIndex);
-                if (testTex) break;
-            }
-
-
             if (InVertices.Count == 0) continue;
 
             Mesh thisMesh = new Mesh();
@@ -345,40 +312,382 @@ public class test2 : MonoBehaviour
             thisMesh.SetUVs(2, InUVs2);
             thisMesh.SetUVs(3, InUVs3);
             thisMesh.SetUVs(7, InUVs7);
+            //thisMesh.SetBoneWeights( = InBoneWeights.ToArray();
             thisMesh.RecalculateBounds();
             thisMesh.RecalculateNormals();
             thisMesh.RecalculateTangents();
             ThisModelPart.AddComponent<MeshFilter>().mesh = thisMesh;
-            ThisModelPart.AddComponent<MeshRenderer>().material = new Material(UnityEngine.Shader.Find("Diffuse"));
-            ThisModelPart.GetComponent<MeshRenderer>().material.SetTexture("_MainTex", testTex);
-
+            ThisModelPart.AddComponent<MeshRenderer>().material = MakeMaterial(Model.MaterialLibraryIndex);
         }
 
         return ThisModel;
     }
 
-    private alien_textures GetTexturesTable(int TableIndex)
+    public Material MakeMaterial(int MTLIndex)
     {
-        switch (TableIndex)
+        alien_mtl_material InMaterial = Result.ModelsMTL.Materials[MTLIndex];
+        int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
+        alien_shader_pak_shader Shader = Result.ShadersPAK.Shaders[RemappedIndex];
+
+        List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
+        alien_shader_category ShaderCategory = (alien_shader_category)Shader.Header2.ShaderCategory;
+
+        switch (ShaderCategory)
         {
-            case 0:
-                return Result.LevelTextures;
-            case 2:
-                return Result.GlobalTextures;
+            case alien_shader_category.AlienShaderCategory_Particle:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Ribbon:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Environment:
+                SlotOffsets.Add(alien_slot_ids.OPACITY);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.OCCLUSION);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.FRESNEL_LUT);
+                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_ShadowCaster:
+                return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
+
+            case alien_shader_category.AlienShaderCategory_DecalEnvironment:
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Character:
+                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.OCCLUSION);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                break;
+
+            // TODO: The folowing should use their own specific structs and shaders.
+
+            case alien_shader_category.AlienShaderCategory_Skin:
+                SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.WRINKLE_MASK);
+                SlotOffsets.Add(alien_slot_ids.WRINKLE_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Hair:
+                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Eye:
+                SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
+                SlotOffsets.Add(alien_slot_ids.SCATTER_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_SkinOcclusion:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Deferred:
+                // NOTE: This material doesn't have textures.
+                // TODO: Not sure what to do here. Why would objects have a "deferred" material?
+                //  From looking at the asset files, it seems like this is a deferred point light.
+                return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
+
+            case alien_shader_category.AlienShaderCategory_Decal:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.EMISSIVE);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                SlotOffsets.Add(alien_slot_ids.BURN_THROUGH);
+                SlotOffsets.Add(alien_slot_ids.LIQUIFY);
+                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                SlotOffsets.Add(alien_slot_ids.LIQUIFY2);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_FogPlane:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_0);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_1);
+                // TODO: Should be 'DiffuseMapStatic' - but I am not using that yet.  In order to keep the light cones
+                //  visually appealing and not slabs of solid white, I am using normal diffuse for now.
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Debug:
+                // NOTE: Debug materials have no textures.
+                // TODO: Maybe we shouldn't be rendering those, or maybe separate them.
+                return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
+
+            case alien_shader_category.AlienShaderCategory_OcclusionCulling:
+                // NOTE: No textures here.
+                return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
+
+            case alien_shader_category.AlienShaderCategory_Refraction:
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
+                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                //Material->Material.BaseColor = { };
+                break;
+
+            case alien_shader_category.AlienShaderCategory_NonInteractiveWater:
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
+                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_LowLODCharacter:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.LOW_LOD_CHARACTER_MASK);
+                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_LightDecal:
+                SlotOffsets.Add(alien_slot_ids.EMISSIVE);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_SpaceSuitVisor:
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
+                SlotOffsets.Add(alien_slot_ids.FACE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.UNSCALED_DIRT_MAP);
+                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Planet:
+                SlotOffsets.Add(alien_slot_ids.ATMOSPHERE_MAP);
+                SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                break;
+
+            // TODO: Remove this after we handle all possible shader categories.
+            default:
+                return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
         }
-        return new alien_textures();
+
+        int TableIndex = 11;
+        List<Texture> availableTextures = new List<Texture>();
+        Debug.Log(ShaderCategory);
+        for (int SlotIndex = 0; SlotIndex < Shader.Header.TableEntryCounts[TableIndex]; ++SlotIndex)
+        {
+            int PairIndex = Shader.Tables[TableIndex][SlotIndex];
+            // NOTE: PairIndex == 255 means no index.
+            if (PairIndex < Result.ModelsMTL.TextureReferenceCounts[MTLIndex])
+            {
+                alien_mtl_texture_reference Pair = InMaterial.TextureReferences[PairIndex];
+                availableTextures.Add(LoadTexture(Pair.TextureIndex, Pair.TextureTableIndex));
+            }
+            else
+            {
+                availableTextures.Add(null);
+            }
+        }
+
+        Material ToReturn = new Material(UnityEngine.Shader.Find("Standard"));
+        for (int i = 0; i < SlotOffsets.Count; i++)
+        {
+            switch (SlotOffsets[i])
+            {
+                case alien_slot_ids.DIFFUSE_MAP_0:
+                case alien_slot_ids.DIFFUSE_MAP_1:
+                case alien_slot_ids.DIFFUSE_MAP:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_MainTex", availableTextures[i]);
+                    break;
+                case alien_slot_ids.EMISSIVE:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_EmissionMap", availableTextures[i]);
+                    break;
+                case alien_slot_ids.PARALLAX_MAP:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_ParallaxMap", availableTextures[i]);
+                    break;
+                case alien_slot_ids.OCCLUSION:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_OcclusionMap", availableTextures[i]);
+                    break;
+                case alien_slot_ids.ROUGHNESS_METALLIC:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_MetallicGlossMap", availableTextures[i]);
+                    break;
+                case alien_slot_ids.NORMAL_MAP:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_BumpMap", availableTextures[i]);
+                    break;
+
+            }
+        }
+
+        return ToReturn;
+    }
+
+    public alien_textures GetTexturesTable(int TableIndex)
+    {
+        if (TableIndex == 0) return Result.LevelTextures;
+        if (TableIndex == 2) return Result.GlobalTextures;
+        throw new Exception("Texture bank can only be 0 or 2");
+    }
+
+    public void TEST()
+    {
+        gameObject.AddComponent<Animation>();
+        gameObject.AddComponent<SkinnedMeshRenderer>();
+        SkinnedMeshRenderer rend = GetComponent<SkinnedMeshRenderer>();
+        Animation anim = GetComponent<Animation>();
+
+        // Build basic mesh
+        Mesh mesh = new Mesh();
+        mesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(-1, 5, 0), new Vector3(1, 5, 0) };
+        mesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
+        mesh.triangles = new int[] { 0, 3, 1, 0, 2, 3 };
+        mesh.RecalculateNormals();
+
+        // Assign mesh to mesh filter & renderer
+        rend.material = new Material(Shader.Find("Diffuse"));
+
+        // Assign bone weights to mesh
+        // We use 2 bones. One for the lower vertices, one for the upper vertices.
+        BoneWeight[] weights = new BoneWeight[4];
+
+        weights[0].boneIndex0 = 0;
+        weights[0].weight0 = 1;
+
+        weights[1].boneIndex0 = 0;
+        weights[1].weight0 = 1;
+
+        weights[2].boneIndex0 = 1;
+        weights[2].weight0 = 1;
+
+        weights[3].boneIndex0 = 1;
+        weights[3].weight0 = 1;
+
+        // A BoneWeights array (weights) was just created and the boneIndex and weight assigned.
+        // The weights array will now be assigned to the boneWeights array in the Mesh.
+        mesh.boneWeights = weights;
+
+        // Create Bone Transforms and Bind poses
+        // One bone at the bottom and one at the top
+        Transform[] bones = new Transform[2];
+        Matrix4x4[] bindPoses = new Matrix4x4[2];
+
+        bones[0] = new GameObject("Lower").transform;
+        bones[0].parent = transform;
+        // Set the position relative to the parent
+        bones[0].localRotation = Quaternion.identity;
+        bones[0].localPosition = Vector3.zero;
+
+        // The bind pose is bone's inverse transformation matrix
+        // In this case the matrix we also make this matrix relative to the root
+        // So that we can move the root game object around freely
+        bindPoses[0] = bones[0].worldToLocalMatrix * transform.localToWorldMatrix;
+
+        bones[1] = new GameObject("Upper").transform;
+        bones[1].parent = transform;
+        // Set the position relative to the parent
+        bones[1].localRotation = Quaternion.identity;
+        bones[1].localPosition = new Vector3(0, 5, 0);
+        // The bind pose is bone's inverse transformation matrix
+        // In this case the matrix we also make this matrix relative to the root
+        // So that we can move the root game object around freely
+        bindPoses[1] = bones[1].worldToLocalMatrix * transform.localToWorldMatrix;
+
+        // assign the bindPoses array to the bindposes array which is part of the mesh.
+        mesh.bindposes = bindPoses;
+
+        // Assign bones and bind poses
+        rend.bones = bones;
+        rend.sharedMesh = mesh;
+
+        // Assign a simple waving animation to the bottom bone
+        AnimationCurve curve = new AnimationCurve();
+        curve.keys = new Keyframe[] { new Keyframe(0, 0, 0, 0), new Keyframe(1, 3, 0, 0), new Keyframe(2, 0.0F, 0, 0) };
+
+        // Create the clip with the curve
+        AnimationClip clip = new AnimationClip();
+        clip.SetCurve("Lower", typeof(Transform), "m_LocalPosition.z", curve);
+        clip.legacy = true;
+        clip.wrapMode = WrapMode.Loop;
+
+        // Add and play the clip
+        anim.AddClip(clip, "test");
+        anim.Play("test");
     }
 
     GameObject currentMesh = null;
-    int currentMeshIndex = 50;
+    int currentMeshIndex = 1255;
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.P))
         {
             if (currentMesh != null) Destroy(currentMesh);
-            currentMesh = LoadModel(currentMeshIndex);
+            //currentMesh = LoadModel(currentMeshIndex);
             //LoadTexture(currentMeshIndex);
             currentMeshIndex++;
+            TEST();
         }
     }
 
@@ -388,5 +697,46 @@ public class test2 : MonoBehaviour
         {
             reader.ReadByte();
         }
+    }
+
+    enum alien_slot_ids
+    {
+        NONE = -1,
+        DIFFUSE_MAP,
+        COLOR_RAMP_MAP,
+        SECONDARY_DIFFUSE_MAP,
+        OPACITY,
+        NORMAL_MAP,
+        SECONDARY_NORMAL_MAP,
+        ROUGHNESS_METALLIC,
+        SECONDARY_ROUGHNESS_METALLIC,
+        ENVIRONMENT_MAP,
+        OCCLUSION,
+        FRESNEL_LUT,
+        PARALLAX_MAP,
+        OPACITY_NOISE_MAP,
+        DIRT_MAP,
+        WETNESS_NOISE,
+        ALPHA_THRESHOLD,
+        IRRADIANCE_MAP,
+        CONVOLVED_DIFFUSE,
+        WRINKLE_MASK,
+        WRINKLE_NORMAL_MAP,
+        SCATTER_MAP,
+        EMISSIVE,
+        BURN_THROUGH,
+        LIQUIFY,
+        LIQUIFY2,
+        COLOR_RAMP,
+        DIFFUSE_MAP_0,
+        DIFFUSE_MAP_1,
+        FLOW_MAP,
+        ALPHA_MASK,
+        LOW_LOD_CHARACTER_MASK,
+        UNSCALED_DIRT_MAP,
+        FACE_MAP,
+        MASKING_MAP,
+        ATMOSPHERE_MAP,
+        DETAIL_MAP,
     }
 }
