@@ -7,47 +7,32 @@ using System;
 using CATHODE;
 using CathodeLib;
 
-public class test : MonoBehaviour
+public class test
 {
     private CommandsPAK commandsPAK = null;
-    private RenderableElementsBIN redsBIN = null;
-    private ModelPAK modelPAK = null;
-    private TexturePAK texturePAK = null;
-
-    List<CS2> allModelsInLevel;
-    BinaryReader modelPAKReader;
+    private List<alien_reds_entry> redsBIN;
 
     //Test code to load in everything that has a position: note, the hierarchy of objects needs to be considered here
-    void Start()
+    public void LoadCommandsPAK(List<alien_reds_entry> redsbin, System.Action<int, PosAndRot> loadModelCallback)
     {
-        string basePath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_COMMS\";
+        string basePath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\BSP_TORRENS\";
         commandsPAK = new CommandsPAK(basePath + @"WORLD\COMMANDS.PAK");
-        redsBIN = new RenderableElementsBIN(basePath + @"WORLD\REDS.BIN");
-        modelPAK = new ModelPAK(basePath + @"RENDERABLE\LEVEL_MODELS.PAK"); modelPAK.Load();
-        allModelsInLevel = modelPAK.GetCS2s();
-        //texturePAK = new TexturePAK(path_to_ENV + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK"); texturePAK.Load();
-        modelPAKReader = new BinaryReader(File.OpenRead(basePath + @"RENDERABLE\LEVEL_MODELS.PAK"));
+        redsBIN = redsbin;
 
-        RecursiveLoad(commandsPAK.EntryPoints[0], new PosAndRot());
-
-        //CS2 submesh = allModelsInLevel[100];
-        //LoadModel(submesh, new PosAndRot());
-
-        modelPAKReader.Close();
+        RecursiveLoad(commandsPAK.EntryPoints[0], new PosAndRot(), loadModelCallback);
     }
 
-    private void RecursiveLoad(CathodeFlowgraph flowgraph, PosAndRot stackedTransform)
+    private void RecursiveLoad(CathodeFlowgraph flowgraph, PosAndRot stackedTransform, System.Action<int, PosAndRot> loadModelCallback)
     {
         List<CathodeNodeEntity> models = GetAllOfType(flowgraph, new string[] { "ModelReference", "EnvironmentModelReference" });
         foreach (CathodeNodeEntity node in models)
         {
             PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            GameObject newCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            newCube.name = NodeDB.GetFriendlyName(node.nodeID);
-            newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
-            newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
-            continue;
-            LoadREDS(node, flowgraph, thisNodePos);
+            //GameObject newCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            //newCube.name = NodeDB.GetFriendlyName(node.nodeID);
+            //newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
+            //newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
+            LoadREDS(node, flowgraph, thisNodePos, loadModelCallback);
         }
 
         /*
@@ -90,7 +75,7 @@ public class test : MonoBehaviour
             CathodeFlowgraph nextCall = commandsPAK.GetFlowgraph(node.nodeType);
             if (nextCall == null) continue;
             Debug.Log(GetTransform(node).position);
-            RecursiveLoad(nextCall, stackedTransform + GetTransform(node));
+            RecursiveLoad(nextCall, stackedTransform + GetTransform(node), loadModelCallback);
         }
     }
 
@@ -104,97 +89,6 @@ public class test : MonoBehaviour
             matchingNodes.Add(node);
         }
         return matchingNodes;
-    }
-
-    private void LoadModel(CS2 submesh, PosAndRot thisNodePos)
-    {
-        try { 
-            MemoryStream submeshEntry = null;
-            BinaryReader submeshReader = null;
-            int startOffset = 48;
-            int entry_length = -1;
-
-            if (submeshEntry == null)
-            {
-                modelPAKReader.BaseStream.Position = modelPAK._hle + submesh.PakOffset;
-                submeshEntry = new MemoryStream(modelPAKReader.ReadBytes(submesh.PakSize));
-                submeshReader = new BinaryReader(submeshEntry);
-
-                submeshReader.BaseStream.Position = startOffset;
-                bool foundPos = false;
-                while (submeshReader.BaseStream.Position < (submeshReader.BaseStream.Length - (submesh.FaceCount * 2)))
-                {
-                    if (submeshReader.ReadBytes(2).SequenceEqual(new byte[] { 0x01, 0x80 }))
-                    {
-                        if (!foundPos)
-                        {
-                            foundPos = true;
-                            entry_length = (int)submeshReader.BaseStream.Position;
-                            startOffset = entry_length - 8;
-                        }
-                        else
-                        {
-                            entry_length = (int)submeshReader.BaseStream.Position - entry_length;
-                            break;
-                        }
-                    }
-                }
-                if (entry_length == -1) return; //error
-            }
-            submeshReader.BaseStream.Position = startOffset;
-
-            if (startOffset >= submeshReader.BaseStream.Length) return; //hmm
-
-            Vector3[] vertices = new Vector3[submesh.VertCount];
-            for (int i = 0; i < submesh.VertCount; i++)
-            {
-                vertices[i].x = (submeshReader.ReadInt16() / -2048.0f);
-                vertices[i].y = (submeshReader.ReadInt16() / 2048.0f);
-                vertices[i].z = (submeshReader.ReadInt16() / 2048.0f);
-
-                int unk1 = submeshReader.ReadInt16();
-                submeshReader.BaseStream.Position += entry_length - 8;
-            }
-            for (int i = 0; i < submesh.VertCount; i++)
-            {
-                //TODO: pull normals
-            }
-            for (int i = 0; i < submesh.VertCount; i++)
-            {
-                //TODO: there is sometimes another block here
-            }
-            startOffset += submesh.BlockSize;
-            submeshReader.BaseStream.Position = (startOffset - (submesh.FaceCount * 2) -8); //sometimes this is -8, sometimes not :/
-            int[] indicies = new int[submesh.FaceCount];
-            for (int i = 0; i < submesh.FaceCount; i += 3)
-            {
-                int index_x = submeshReader.ReadInt16();
-                int index_y = submeshReader.ReadInt16();
-                int index_z = submeshReader.ReadInt16();
-
-                indicies[i] = index_x;
-                indicies[i + 1] = index_y;
-                indicies[i + 2] = index_z;
-            }
-
-            GameObject newCube = new GameObject(submesh.Filename + " | " + submesh.ModelPartName);
-            newCube.transform.position = thisNodePos.position;
-            newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.y, thisNodePos.rotation.x, thisNodePos.rotation.z); //PARSING THIS WRONG IN THE DLL!
-
-            Debug.Log(vertices.Length + " - " + submesh.Filename + " | " + submesh.ModelPartName);
-            //Debug.Log(vertices);
-            //Debug.Log(indicies);
-
-            Mesh mesh = new Mesh();
-            mesh.SetVertices(vertices);
-            mesh.SetIndices(indicies, MeshTopology.Triangles, 0);
-            mesh.RecalculateBounds();
-            mesh.RecalculateNormals();
-            mesh.RecalculateTangents();
-            newCube.AddComponent<MeshFilter>().mesh = mesh;
-            newCube.AddComponent<MeshRenderer>().material = new Material(Shader.Find("Diffuse"));
-        }
-        catch { }
     }
 
     private PosAndRot GetTransform(CathodeNodeEntity node)
@@ -225,20 +119,16 @@ public class test : MonoBehaviour
         return null;
     }
 
-    private void LoadREDS(CathodeNodeEntity node, CathodeFlowgraph flowgraph, PosAndRot thisNodePos)
+    private void LoadREDS(CathodeNodeEntity node, CathodeFlowgraph flowgraph, PosAndRot thisNodePos, System.Action<int, PosAndRot> loadModelCallback)
     {
         //If has a renderable element, try create it
         byte[] resourceID = GetResource(node);
         if (resourceID == null) return;
         CathodeResourceReference resRef = flowgraph.GetResourceReferenceByID(resourceID);
         if (resRef == null || resRef.entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) return;
-        List<RenderableElement> redsList = new List<RenderableElement>();
-        for (int p = 0; p < resRef.entryCountREDS; p++) redsList.Add(redsBIN.GetRenderableElement(resRef.entryIndexREDS + p));
-        if (resRef.entryCountREDS != redsList.Count || redsList.Count == 0) return; //TODO: handle this nicer
-        foreach (RenderableElement renderable in redsList)
+        for (int p = 0; p < resRef.entryCountREDS; p++)
         {
-            CS2 submesh = allModelsInLevel[renderable.model_index];
-            LoadModel(submesh, thisNodePos);
+            loadModelCallback(redsBIN[resRef.entryIndexREDS].ModelIndex + p, thisNodePos);
         }
     }
 }

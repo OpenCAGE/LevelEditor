@@ -12,10 +12,12 @@ public class test2 : MonoBehaviour
     [SerializeField] private UnityEngine.UI.Image uiSprite = null;
 
     alien_level Result = new alien_level();
+    Texture2D[] LoadedTexturesGlobal;
+    Texture2D[] LoadedTexturesLevel;
 
     void Start()
     {
-        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\BSP_TORRENS";
+        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_COMMS";
 
         Result.GlobalTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         Result.LevelTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
@@ -25,17 +27,40 @@ public class test2 : MonoBehaviour
         Result.ModelsBIN = TestProject.File_Handlers.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
         Result.ModelsPAK = TestProject.File_Handlers.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
 
+        Result.RenderableREDS = TestProject.File_Handlers.Misc.RenderableElementsBIN.Load(levelPath + "/RENDERABLE/REDS.BIN");
+
         Result.ShadersPAK = TestProject.File_Handlers.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
         Result.ShadersIDXRemap = TestProject.File_Handlers.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
 
-        for (int i = 0; i < Result.ModelsPAK.Models.Count; i++)
+        //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
+        LoadedTexturesGlobal = new Texture2D[Result.GlobalTextures.BIN.Header.EntryCount];
+        LoadedTexturesLevel = new Texture2D[Result.LevelTextures.BIN.Header.EntryCount];
+        bool[] TextureLoadTrackerGlobal = new bool[Result.GlobalTextures.BIN.Header.EntryCount];
+        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.BIN.Header.EntryCount];
+        for (int i = 0; i < Result.GlobalTextures.PAK.Header.EntryCount; i++)
         {
-            LoadModel(i);
+            int binIndex = Result.GlobalTextures.PAK.Entries[i].BINIndex;
+            Texture2D newTex = LoadTexture(i, 2, !TextureLoadTrackerGlobal[binIndex]);
+            if (newTex != null) LoadedTexturesGlobal[binIndex] = newTex;
+            TextureLoadTrackerGlobal[binIndex] = true;
         }
+        for (int i = 0; i < Result.LevelTextures.PAK.Header.EntryCount; i++)
+        {
+            int binIndex = Result.LevelTextures.PAK.Entries[i].BINIndex;
+            Texture2D newTex = LoadTexture(i, 0, !TextureLoadTrackerLevel[binIndex]);
+            if (newTex != null) LoadedTexturesLevel[binIndex] = newTex;
+            TextureLoadTrackerLevel[binIndex] = true;
+        }
+
+        //Load all models - TODO: do this by commands.pak
+        for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
+
+        //test newTest = new test();
+        //newTest.LoadCommandsPAK(Result.RenderableREDS.Entries, LoadModel);
     }
 
-    private Texture2D LoadTexture(int EntryIndex, int paktype = 0)
+    private Texture2D LoadTexture(int EntryIndex, int paktype = 0, bool loadV1 = true)
     {
         alien_textures AlienTextures = GetTexturesTable(paktype); 
         if (EntryIndex < 0 || EntryIndex >= AlienTextures.PAK.Header.EntryCount)
@@ -47,9 +72,24 @@ public class test2 : MonoBehaviour
         alien_pak_entry Entry = AlienTextures.PAK.Entries[EntryIndex];
         alien_texture_bin_texture InTexture = AlienTextures.BIN.Textures[Entry.BINIndex];
 
-        //ASSUMES V1!!
+        Vector2 textureDims;
+        int textureLength = 0;
+        int mipLevels = 0;
 
-        if (InTexture.Length_V1 == 0)
+        if (loadV1)
+        {
+            textureDims = new Vector2(InTexture.Size_V1[0], InTexture.Size_V1[1]);
+            textureLength = InTexture.Length_V1;
+            mipLevels = InTexture.MipLevelsV1;
+        } 
+        else
+        {
+            textureDims = new Vector2(InTexture.Size_V2[0], InTexture.Size_V2[1]);
+            textureLength = InTexture.Length_V2;
+            mipLevels = InTexture.MipLevelsV2;
+        }
+
+        if (textureLength == 0)
         {
             Debug.LogWarning("LENGTH ZERO - NOT LOADING");
             return null;
@@ -98,27 +138,32 @@ public class test2 : MonoBehaviour
                 break;
         }
 
-        Texture2D texture = new Texture2D(InTexture.Size_V1[0], InTexture.Size_V1[1], format, InTexture.MipLevelsV1, true);
+        Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
         texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
         BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.PAK.DataStart));
         tempReader.BaseStream.Position = Entry.Offset;
-        texture.LoadRawTextureData(tempReader.ReadBytes(InTexture.Length_V1));
+        texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
         tempReader.Close();
         texture.Apply();
         return texture;
     }
 
-    private GameObject LoadModel(int EntryIndex)
+    private void LoadModel(int EntryIndex/*, PosAndRot thisNodePos*/)
     {
         if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
         {
             Debug.LogWarning("Asked to load model at index " + EntryIndex + ", which is out of bounds!");
-            return new GameObject();
+            //return new GameObject();
+            return;
         }
 
         alien_pak_model_entry ChunkArray = Result.ModelsPAK.Models[EntryIndex];
 
         GameObject ThisModel = new GameObject();
+        /*
+        ThisModel.transform.position = thisNodePos.position;
+        ThisModel.transform.rotation = Quaternion.Euler(thisNodePos.rotation);
+        */
 
         for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.ChunkCount; ++ChunkIndex)
         {
@@ -320,7 +365,7 @@ public class test2 : MonoBehaviour
             ThisModelPart.AddComponent<MeshRenderer>().material = MakeMaterial(Model.MaterialLibraryIndex);
         }
 
-        return ThisModel;
+        //return ThisModel;
     }
 
     public Material MakeMaterial(int MTLIndex)
@@ -537,7 +582,6 @@ public class test2 : MonoBehaviour
 
         int TableIndex = 11;
         List<Texture> availableTextures = new List<Texture>();
-        Debug.Log(ShaderCategory);
         for (int SlotIndex = 0; SlotIndex < Shader.Header.TableEntryCounts[TableIndex]; ++SlotIndex)
         {
             int PairIndex = Shader.Tables[TableIndex][SlotIndex];
@@ -545,7 +589,9 @@ public class test2 : MonoBehaviour
             if (PairIndex < Result.ModelsMTL.TextureReferenceCounts[MTLIndex])
             {
                 alien_mtl_texture_reference Pair = InMaterial.TextureReferences[PairIndex];
-                availableTextures.Add(LoadTexture(Pair.TextureIndex, Pair.TextureTableIndex));
+                if (Pair.TextureTableIndex == 0) availableTextures.Add(LoadedTexturesLevel[Pair.TextureIndex]);
+                else if (Pair.TextureTableIndex == 2) availableTextures.Add(LoadedTexturesGlobal[Pair.TextureIndex]);
+                else availableTextures.Add(null);
             }
             else
             {
@@ -592,91 +638,6 @@ public class test2 : MonoBehaviour
         throw new Exception("Texture bank can only be 0 or 2");
     }
 
-    public void TEST()
-    {
-        gameObject.AddComponent<Animation>();
-        gameObject.AddComponent<SkinnedMeshRenderer>();
-        SkinnedMeshRenderer rend = GetComponent<SkinnedMeshRenderer>();
-        Animation anim = GetComponent<Animation>();
-
-        // Build basic mesh
-        Mesh mesh = new Mesh();
-        mesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(-1, 5, 0), new Vector3(1, 5, 0) };
-        mesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
-        mesh.triangles = new int[] { 0, 3, 1, 0, 2, 3 };
-        mesh.RecalculateNormals();
-
-        // Assign mesh to mesh filter & renderer
-        rend.material = new Material(Shader.Find("Diffuse"));
-
-        // Assign bone weights to mesh
-        // We use 2 bones. One for the lower vertices, one for the upper vertices.
-        BoneWeight[] weights = new BoneWeight[4];
-
-        weights[0].boneIndex0 = 0;
-        weights[0].weight0 = 1;
-
-        weights[1].boneIndex0 = 0;
-        weights[1].weight0 = 1;
-
-        weights[2].boneIndex0 = 1;
-        weights[2].weight0 = 1;
-
-        weights[3].boneIndex0 = 1;
-        weights[3].weight0 = 1;
-
-        // A BoneWeights array (weights) was just created and the boneIndex and weight assigned.
-        // The weights array will now be assigned to the boneWeights array in the Mesh.
-        mesh.boneWeights = weights;
-
-        // Create Bone Transforms and Bind poses
-        // One bone at the bottom and one at the top
-        Transform[] bones = new Transform[2];
-        Matrix4x4[] bindPoses = new Matrix4x4[2];
-
-        bones[0] = new GameObject("Lower").transform;
-        bones[0].parent = transform;
-        // Set the position relative to the parent
-        bones[0].localRotation = Quaternion.identity;
-        bones[0].localPosition = Vector3.zero;
-
-        // The bind pose is bone's inverse transformation matrix
-        // In this case the matrix we also make this matrix relative to the root
-        // So that we can move the root game object around freely
-        bindPoses[0] = bones[0].worldToLocalMatrix * transform.localToWorldMatrix;
-
-        bones[1] = new GameObject("Upper").transform;
-        bones[1].parent = transform;
-        // Set the position relative to the parent
-        bones[1].localRotation = Quaternion.identity;
-        bones[1].localPosition = new Vector3(0, 5, 0);
-        // The bind pose is bone's inverse transformation matrix
-        // In this case the matrix we also make this matrix relative to the root
-        // So that we can move the root game object around freely
-        bindPoses[1] = bones[1].worldToLocalMatrix * transform.localToWorldMatrix;
-
-        // assign the bindPoses array to the bindposes array which is part of the mesh.
-        mesh.bindposes = bindPoses;
-
-        // Assign bones and bind poses
-        rend.bones = bones;
-        rend.sharedMesh = mesh;
-
-        // Assign a simple waving animation to the bottom bone
-        AnimationCurve curve = new AnimationCurve();
-        curve.keys = new Keyframe[] { new Keyframe(0, 0, 0, 0), new Keyframe(1, 3, 0, 0), new Keyframe(2, 0.0F, 0, 0) };
-
-        // Create the clip with the curve
-        AnimationClip clip = new AnimationClip();
-        clip.SetCurve("Lower", typeof(Transform), "m_LocalPosition.z", curve);
-        clip.legacy = true;
-        clip.wrapMode = WrapMode.Loop;
-
-        // Add and play the clip
-        anim.AddClip(clip, "test");
-        anim.Play("test");
-    }
-
     GameObject currentMesh = null;
     int currentMeshIndex = 1255;
     void Update()
@@ -687,7 +648,6 @@ public class test2 : MonoBehaviour
             //currentMesh = LoadModel(currentMeshIndex);
             //LoadTexture(currentMeshIndex);
             currentMeshIndex++;
-            TEST();
         }
     }
 
