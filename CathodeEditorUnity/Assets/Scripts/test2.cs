@@ -72,7 +72,6 @@ public class test2 : MonoBehaviour
             Debug.Log("Attempted to load non-parsed model. Skipping!");
             return;
         }
-        Debug.Log("Spawned model " + binIndex + ": " + LoadedModels[binIndex].Name);
         GameObject newModelSpawn = new GameObject();
         newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;

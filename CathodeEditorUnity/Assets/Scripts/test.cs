@@ -31,7 +31,13 @@ public class CommandsLoader
         List<CathodeNodeEntity> models = GetAllOfType(flowgraph, new string[] { "ModelReference", "EnvironmentModelReference" });
         foreach (CathodeNodeEntity node in models)
         {
-            LoadModelNode(node, flowgraph, parentTransform.transform, loadModelCallback);
+            PosAndRot trans = GetTransform(node);
+            GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(node.nodeType, commandsPAK) + ": " + NodeDB.GetFriendlyName(node.nodeID));
+            thisNodeGO.transform.parent = parentTransform.transform;
+            thisNodeGO.transform.localPosition = trans.position;
+            thisNodeGO.transform.localRotation = trans.rotation;
+
+            LoadModelNode(node, flowgraph, thisNodeGO, loadModelCallback);
         }
 
         /*
@@ -110,35 +116,31 @@ public class CommandsLoader
         return toReturn;
     }
 
-    private byte[] GetResource(CathodeNodeEntity node)
+    private List<byte[]> GetResource(CathodeNodeEntity node)
     {
+        List<byte[]> resources = new List<byte[]>();
         foreach (CathodeParameterReference paramRef in node.nodeParameterReferences)
         {
             CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
             if (param == null) continue;
             if (param.dataType != CathodeDataType.SHORT_GUID) continue;
-            return ((CathodeResource)param).resourceID;
+            resources.Add(((CathodeResource)param).resourceID);
         }
-        return null;
+        return resources;
     }
 
-    private void LoadModelNode(CathodeNodeEntity node, CathodeFlowgraph flowgraph, Transform parentTransform, System.Action<int, GameObject> loadModelCallback)
+    private void LoadModelNode(CathodeNodeEntity node, CathodeFlowgraph flowgraph, GameObject thisNodeGO, System.Action<int, GameObject> loadModelCallback)
     {
-        //Get REDS.BIN entry
-        byte[] resourceID = GetResource(node);
-        if (resourceID == null) return;
-        CathodeResourceReference resRef = flowgraph.GetResourceReferenceByID(resourceID);
-        if (resRef == null || resRef.entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) return; //Ignoring collision maps, etc, for now
-
-        //Make a GameObject for this node now we know we can render it
-        PosAndRot trans = GetTransform(node);
-        GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(node.nodeType, commandsPAK) + ": " + NodeDB.GetFriendlyName(node.nodeID));
-        thisNodeGO.transform.parent = parentTransform;
-        thisNodeGO.transform.localPosition = trans.position;
-        thisNodeGO.transform.localRotation = trans.rotation;
-
-        //Populate GO with renderable content
-        for (int p = 0; p < resRef.entryCountREDS; p++) loadModelCallback(redsBIN[resRef.entryIndexREDS].ModelIndex + p, thisNodeGO);
+        List<byte[]> resourceID = GetResource(node);
+        for (int i = 0; i < resourceID.Count; i++)
+        {
+            List<CathodeResourceReference> resRef = flowgraph.GetResourceReferencesByID(resourceID[i]);
+            for (int x = 0; x < resRef.Count; x++)
+            {
+                if (resRef[x].entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) continue; //Ignoring collision maps, etc, for now
+                for (int p = 0; p < resRef[x].entryCountREDS; p++) loadModelCallback(redsBIN[resRef[x].entryIndexREDS].ModelIndex + p, thisNodeGO);
+            }
+        }
     }
 }
 
