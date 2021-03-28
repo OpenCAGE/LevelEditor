@@ -9,26 +9,24 @@ using System.Linq;
 
 public class test2 : MonoBehaviour
 {
-    [SerializeField] private UnityEngine.UI.Image uiSprite = null;
-
     alien_level Result = new alien_level();
     Texture2D[] LoadedTexturesGlobal;
     Texture2D[] LoadedTexturesLevel;
+    GameObjectHolder[] LoadedModels;
 
     void Start()
     {
-        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_COMMS";
+        string LEVEL_NAME = "BSP_TORRENS";
+        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
 
+        //Parse content
         Result.GlobalTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", levelPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         Result.LevelTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
-
         Result.ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
         Result.ModelsMTL = TestProject.File_Handlers.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL", Result.ModelsCST);
         Result.ModelsBIN = TestProject.File_Handlers.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
         Result.ModelsPAK = TestProject.File_Handlers.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
-
-        Result.RenderableREDS = TestProject.File_Handlers.Misc.RenderableElementsBIN.Load(levelPath + "/RENDERABLE/REDS.BIN");
-
+        Result.RenderableREDS = TestProject.File_Handlers.Misc.RenderableElementsBIN.Load(levelPath + "/WORLD/REDS.BIN");
         Result.ShadersPAK = TestProject.File_Handlers.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
         Result.ShadersIDXRemap = TestProject.File_Handlers.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
@@ -53,11 +51,36 @@ public class test2 : MonoBehaviour
             TextureLoadTrackerLevel[binIndex] = true;
         }
 
-        //Load all models - TODO: do this by commands.pak
+        //Load all models
+        LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
-        //test newTest = new test();
-        //newTest.LoadCommandsPAK(Result.RenderableREDS.Entries, LoadModel);
+        //Populate scene with positioned models 
+        CommandsLoader newTest = new CommandsLoader();
+        newTest.LoadCommandsPAK(LEVEL_NAME, Result.RenderableREDS.Entries, SpawnModel);
+    }
+
+    private void SpawnModel(int binIndex, GameObject parent)
+    {
+        if (binIndex >= Result.ModelsBIN.Header.ModelCount)
+        {
+            Debug.LogWarning("binIndex out of range!");
+            return;
+        }
+        if (LoadedModels[binIndex] == null)
+        {
+            Debug.Log("Attempted to load non-parsed model. Skipping!");
+            return;
+        }
+        Debug.Log("Spawned model " + binIndex + ": " + LoadedModels[binIndex].Name);
+        GameObject newModelSpawn = new GameObject();
+        newModelSpawn.transform.parent = parent.transform;
+        newModelSpawn.transform.localPosition = Vector3.zero;
+        newModelSpawn.transform.localRotation = Quaternion.identity;
+        newModelSpawn.transform.localScale = LoadedModels[binIndex].LocalScale;
+        newModelSpawn.name = LoadedModels[binIndex].Name;
+        newModelSpawn.AddComponent<MeshFilter>().mesh = LoadedModels[binIndex].MainMesh;
+        newModelSpawn.AddComponent<MeshRenderer>().material = LoadedModels[binIndex].MainMaterial;
     }
 
     private Texture2D LoadTexture(int EntryIndex, int paktype = 0, bool loadV1 = true)
@@ -148,7 +171,7 @@ public class test2 : MonoBehaviour
         return texture;
     }
 
-    private void LoadModel(int EntryIndex/*, PosAndRot thisNodePos*/)
+    private void LoadModel(int EntryIndex)
     {
         if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
         {
@@ -158,13 +181,6 @@ public class test2 : MonoBehaviour
         }
 
         alien_pak_model_entry ChunkArray = Result.ModelsPAK.Models[EntryIndex];
-
-        GameObject ThisModel = new GameObject();
-        /*
-        ThisModel.transform.position = thisNodePos.position;
-        ThisModel.transform.rotation = Quaternion.Euler(thisNodePos.rotation);
-        */
-
         for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.ChunkCount; ++ChunkIndex)
         {
             int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
@@ -315,7 +331,7 @@ public class test2 : MonoBehaviour
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v2s16_f:
+                                case alien_vertex_input_type.AlienVertexInputType_v4u8_NTB:
                                     {
                                         Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
                                         Value /= (float)byte.MaxValue - 0.5f;
@@ -339,12 +355,6 @@ public class test2 : MonoBehaviour
                 Align(Stream, 16);
             }
 
-            GameObject ThisModelPart = new GameObject();
-            ThisModelPart.transform.parent = ThisModel.transform;
-            ThisModelPart.transform.localScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
-            ThisModel.name = Result.ModelsBIN.ModelFilePaths[BINIndex];
-            ThisModelPart.name = Result.ModelsBIN.ModelLODPartNames[BINIndex] + "(" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
-
             if (InVertices.Count == 0) continue;
 
             Mesh thisMesh = new Mesh();
@@ -361,11 +371,14 @@ public class test2 : MonoBehaviour
             thisMesh.RecalculateBounds();
             thisMesh.RecalculateNormals();
             thisMesh.RecalculateTangents();
-            ThisModelPart.AddComponent<MeshFilter>().mesh = thisMesh;
-            ThisModelPart.AddComponent<MeshRenderer>().material = MakeMaterial(Model.MaterialLibraryIndex);
-        }
 
-        //return ThisModel;
+            GameObjectHolder ThisModelPart = new GameObjectHolder();
+            ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
+            ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
+            ThisModelPart.MainMesh = thisMesh;
+            ThisModelPart.MainMaterial = MakeMaterial(Model.MaterialLibraryIndex);
+            LoadedModels[BINIndex] = ThisModelPart;
+        }
     }
 
     public Material MakeMaterial(int MTLIndex)
@@ -580,11 +593,10 @@ public class test2 : MonoBehaviour
                 return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
         }
 
-        int TableIndex = 11;
         List<Texture> availableTextures = new List<Texture>();
-        for (int SlotIndex = 0; SlotIndex < Shader.Header.TableEntryCounts[TableIndex]; ++SlotIndex)
+        for (int SlotIndex = 0; SlotIndex < Shader.Header.TextureLinkCount; ++SlotIndex)
         {
-            int PairIndex = Shader.Tables[TableIndex][SlotIndex];
+            int PairIndex = Shader.TextureLinks[SlotIndex];
             // NOTE: PairIndex == 255 means no index.
             if (PairIndex < Result.ModelsMTL.TextureReferenceCounts[MTLIndex])
             {
@@ -627,6 +639,7 @@ public class test2 : MonoBehaviour
 
             }
         }
+        //ToReturn.color = new Color(InMaterial.Co)
 
         return ToReturn;
     }
@@ -699,4 +712,13 @@ public class test2 : MonoBehaviour
         ATMOSPHERE_MAP,
         DETAIL_MAP,
     }
+}
+
+//Temp wrapper for GameObject while we just want it in memory
+public class GameObjectHolder
+{
+    public Vector3 LocalScale;
+    public string Name;
+    public Mesh MainMesh; //TODO: should this be contained in a globally referenced array?
+    public Material MainMaterial; //TODO: should this be global?
 }

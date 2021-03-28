@@ -7,32 +7,31 @@ using System;
 using CATHODE;
 using CathodeLib;
 
-public class test
+public class CommandsLoader
 {
     private CommandsPAK commandsPAK = null;
     private List<alien_reds_entry> redsBIN;
 
     //Test code to load in everything that has a position: note, the hierarchy of objects needs to be considered here
-    public void LoadCommandsPAK(List<alien_reds_entry> redsbin, System.Action<int, PosAndRot> loadModelCallback)
+    public void LoadCommandsPAK(string LEVEL_NAME, List<alien_reds_entry> redsbin, System.Action<int, GameObject> loadModelCallback)
     {
-        string basePath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\BSP_TORRENS\";
+        string basePath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME + "\\";
         commandsPAK = new CommandsPAK(basePath + @"WORLD\COMMANDS.PAK");
         redsBIN = redsbin;
 
-        RecursiveLoad(commandsPAK.EntryPoints[0], new PosAndRot(), loadModelCallback);
+        for (int i = 0; i < commandsPAK.EntryPoints.Count; i++)
+        {
+            GameObject thisFlowgraphGO = new GameObject(commandsPAK.EntryPoints[i].name);
+            RecursiveLoad(commandsPAK.EntryPoints[i], thisFlowgraphGO, loadModelCallback);
+        }
     }
 
-    private void RecursiveLoad(CathodeFlowgraph flowgraph, PosAndRot stackedTransform, System.Action<int, PosAndRot> loadModelCallback)
+    private void RecursiveLoad(CathodeFlowgraph flowgraph, GameObject parentTransform, System.Action<int, GameObject> loadModelCallback)
     {
         List<CathodeNodeEntity> models = GetAllOfType(flowgraph, new string[] { "ModelReference", "EnvironmentModelReference" });
         foreach (CathodeNodeEntity node in models)
         {
-            PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            //GameObject newCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            //newCube.name = NodeDB.GetFriendlyName(node.nodeID);
-            //newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
-            //newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
-            LoadREDS(node, flowgraph, thisNodePos, loadModelCallback);
+            LoadModelNode(node, flowgraph, parentTransform.transform, loadModelCallback);
         }
 
         /*
@@ -74,8 +73,12 @@ public class test
         {
             CathodeFlowgraph nextCall = commandsPAK.GetFlowgraph(node.nodeType);
             if (nextCall == null) continue;
-            Debug.Log(GetTransform(node).position);
-            RecursiveLoad(nextCall, stackedTransform + GetTransform(node), loadModelCallback);
+            PosAndRot trans = GetTransform(node);
+            GameObject nextFlowgraphGO = new GameObject(nextCall.name);
+            nextFlowgraphGO.transform.parent = parentTransform.transform;
+            nextFlowgraphGO.transform.localPosition = trans.position;
+            nextFlowgraphGO.transform.localRotation = trans.rotation;
+            RecursiveLoad(nextCall, nextFlowgraphGO, loadModelCallback);
         }
     }
 
@@ -102,7 +105,7 @@ public class test
             Vec3 position = ((CathodeTransform)param).position;
             Vec3 rotation = ((CathodeTransform)param).rotation;
             toReturn.position = new Vector3(position.x, position.y, position.z);
-            toReturn.rotation = new Vector3(rotation.x, rotation.y, rotation.z);
+            toReturn.rotation = Quaternion.Euler(rotation.y, rotation.x, rotation.z); //TODO: fix this in the actual parser lol
         }
         return toReturn;
     }
@@ -119,17 +122,23 @@ public class test
         return null;
     }
 
-    private void LoadREDS(CathodeNodeEntity node, CathodeFlowgraph flowgraph, PosAndRot thisNodePos, System.Action<int, PosAndRot> loadModelCallback)
+    private void LoadModelNode(CathodeNodeEntity node, CathodeFlowgraph flowgraph, Transform parentTransform, System.Action<int, GameObject> loadModelCallback)
     {
-        //If has a renderable element, try create it
+        //Get REDS.BIN entry
         byte[] resourceID = GetResource(node);
         if (resourceID == null) return;
         CathodeResourceReference resRef = flowgraph.GetResourceReferenceByID(resourceID);
-        if (resRef == null || resRef.entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) return;
-        for (int p = 0; p < resRef.entryCountREDS; p++)
-        {
-            loadModelCallback(redsBIN[resRef.entryIndexREDS].ModelIndex + p, thisNodePos);
-        }
+        if (resRef == null || resRef.entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) return; //Ignoring collision maps, etc, for now
+
+        //Make a GameObject for this node now we know we can render it
+        PosAndRot trans = GetTransform(node);
+        GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(node.nodeType, commandsPAK) + ": " + NodeDB.GetFriendlyName(node.nodeID));
+        thisNodeGO.transform.parent = parentTransform;
+        thisNodeGO.transform.localPosition = trans.position;
+        thisNodeGO.transform.localRotation = trans.rotation;
+
+        //Populate GO with renderable content
+        for (int p = 0; p < resRef.entryCountREDS; p++) loadModelCallback(redsBIN[resRef.entryIndexREDS].ModelIndex + p, thisNodeGO);
     }
 }
 
@@ -139,10 +148,10 @@ public class PosAndRot
     {
         PosAndRot newTrans = new PosAndRot();
         newTrans.position = a.position + b.position;
-        newTrans.rotation = a.rotation + b.rotation;
+        newTrans.rotation = a.rotation * b.rotation;
         return newTrans;
     }
 
     public Vector3 position = new Vector3();
-    public Vector3 rotation = new Vector3();
+    public Quaternion rotation = new Quaternion();
 }
