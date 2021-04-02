@@ -62,16 +62,18 @@ public class CommandsLoader
             newCube.AddComponent<ParticleSystem>().emissionRate = 0;
             continue;
         }
+        */
 
+        /*
         List<CathodeNodeEntity> lights = GetAllOfType(flowgraph, new string[] { "LightReference" });
         foreach (CathodeNodeEntity node in lights)
         {
-            PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            GameObject newCube = new GameObject(NodeDB.GetName(node.nodeType));
-            newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
-            newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
-            newCube.AddComponent<Light>();
-            continue;
+            PosAndRot trans = GetTransform(node);
+            GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(node.nodeType, commandsPAK) + ": " + NodeDB.GetFriendlyName(node.nodeID));
+            thisNodeGO.transform.parent = parentTransform.transform;
+            thisNodeGO.transform.localPosition = trans.position;
+            thisNodeGO.transform.localRotation = trans.rotation;
+            thisNodeGO.AddComponent<Light>(); //todo: pull properties from game
         }
         */
 

@@ -475,8 +475,6 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 break;
 
-            // TODO: The folowing should use their own specific structs and shaders.
-
             case alien_shader_category.AlienShaderCategory_Skin:
                 SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
@@ -708,10 +706,9 @@ public class test2 : MonoBehaviour
     }
 
     GameObject currentMesh = null;
-    int currentMeshIndex = 1255;
+    int currentMeshIndex = 0;
     void Update()
     {
-        return;
         if (LOAD_COMMANDS_PAK) return;
         if (Input.GetKeyDown(KeyCode.P))
         {
