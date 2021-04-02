@@ -56,11 +56,12 @@ public class test2 : MonoBehaviour
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
-        for (int i = 0; i < Result.ModelsBIN.Models.Count; i++)
-        {
-            GameObject thisBin = new GameObject(Result.ModelsBIN.ModelFilePaths[i]);
-            SpawnModel(i, thisBin);
-        }
+        //for (int i = 0; i < Result.ModelsBIN.Models.Count; i++)
+        //{
+        //    GameObject thisBin = new GameObject(Result.ModelsBIN.ModelFilePaths[i]);
+        //    SpawnModel(i, thisBin);
+        //}
+        //return;
 
         if (!LOAD_COMMANDS_PAK) return;
         //Populate scene with positioned models 
@@ -86,8 +87,8 @@ public class test2 : MonoBehaviour
         newModelSpawn.transform.localRotation = Quaternion.identity;
         newModelSpawn.transform.localScale = LoadedModels[binIndex].LocalScale;
         newModelSpawn.name = LoadedModels[binIndex].Name;
-        newModelSpawn.AddComponent<MeshFilter>().mesh = LoadedModels[binIndex].MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().material = LoadedModels[binIndex].MainMaterial;
+        newModelSpawn.AddComponent<MeshFilter>().sharedMesh = LoadedModels[binIndex].MainMesh;
+        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedModels[binIndex].MainMaterial;
 
         if (!LOAD_COMMANDS_PAK) currentMesh = newModelSpawn;
     }
@@ -194,7 +195,7 @@ public class test2 : MonoBehaviour
         {
             int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
             alien_model_bin_model_info Model = Result.ModelsBIN.Models[BINIndex];
-            if (Model.BlockSize == 0) continue;
+            //if (Model.BlockSize == 0) continue;
 
             alien_vertex_buffer_format VertexInput = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
             alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
@@ -390,9 +391,6 @@ public class test2 : MonoBehaviour
             ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.MainMaterial = MakeMaterial(Model.MaterialLibraryIndex);
-
-
-
             LoadedModels[BINIndex] = ThisModelPart;
         }
     }
@@ -660,31 +658,42 @@ public class test2 : MonoBehaviour
             }
         }
 
-        Material ToReturn = new Material(UnityEngine.Shader.Find("Standard (Specular setup)"));
+        Material ToReturn = new Material(UnityEngine.Shader.Find("Standard")); // (Specular setup)
         for (int i = 0; i < SlotOffsets.Count; i++)
         {
+            if (i >= availableTextures.Count) continue;
             switch (SlotOffsets[i])
             {
                 case alien_slot_ids.DIFFUSE_MAP:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_MainTex", availableTextures[i]);
+                    ToReturn.SetTexture("_MainTex", availableTextures[i]);
+                    break;
+                case alien_slot_ids.DETAIL_MAP:
+                    ToReturn.EnableKeyword("_DETAIL_MULX2");
+                    ToReturn.SetTexture("_DetailMask", availableTextures[i]);
                     break;
                 case alien_slot_ids.EMISSIVE:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_EmissionMap", availableTextures[i]);
+                    ToReturn.EnableKeyword("_EMISSION");
+                    ToReturn.SetTexture("_EmissionMap", availableTextures[i]);
                     break;
                 case alien_slot_ids.PARALLAX_MAP:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_ParallaxMap", availableTextures[i]);
+                    ToReturn.EnableKeyword("_PARALLAXMAP");
+                    ToReturn.SetTexture("_ParallaxMap", availableTextures[i]);
                     break;
                 case alien_slot_ids.OCCLUSION:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_OcclusionMap", availableTextures[i]);
+                    ToReturn.SetTexture("_OcclusionMap", availableTextures[i]);
                     break;
                 case alien_slot_ids.SPECULAR_MAP:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_SpecGlossMap", availableTextures[i]); //TODO
+                    ToReturn.EnableKeyword("_METALLICGLOSSMAP");
+                    ToReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
+                    ToReturn.SetFloat("_Glossiness", 0.1f); //TODO: get this from game
+                    ToReturn.SetFloat("_GlossMapScale", 0.1f); //TODO: get this from game
                     break;
                 case alien_slot_ids.NORMAL_MAP:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_BumpMap", availableTextures[i]);
+                    ToReturn.EnableKeyword("_NORMALMAP");
+                    ToReturn.SetTexture("_BumpMap", availableTextures[i]);
                     break;
-
             }
+            //_ALPHATEST_ON if transparent?
         }
         //ToReturn.color = new Color(InMaterial.Co)
 
