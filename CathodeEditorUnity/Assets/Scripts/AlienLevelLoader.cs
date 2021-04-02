@@ -17,10 +17,11 @@ public class AlienLevelLoader : MonoBehaviour
 
     [SerializeField] private bool LOAD_COMMANDS_PAK = false;
     [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
+    string levelPath;
 
     void Start()
     {
-        string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
+        levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
         Result = new alien_level();
 
         //Parse content
@@ -67,14 +68,31 @@ public class AlienLevelLoader : MonoBehaviour
         //return;
 
         if (!LOAD_COMMANDS_PAK) return;
-        //Populate scene with positioned models 
         commandsLoader = GetComponent<CommandsLoader>();
-        commandsLoader.LoadCommandsPAK(levelPath, Result.RenderableREDS.Entries, SpawnModel);
+        List<int> redsRemaps = new List<int>();
+        for (int i = 0; i < Result.RenderableREDS.Entries.Count; i++)
+        {
+            redsRemaps.Add(Result.RenderableREDS.Entries[i].ModelIndex);
+        }
+        StartCoroutine(commandsLoader.LoadCommandsPAK(levelPath, redsRemaps, SpawnModel));
+    }
+
+    GameObject currentMesh = null;
+    int currentMeshIndex = 0;
+    void Update()
+    {
+        if (LOAD_COMMANDS_PAK) return;
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            if (currentMesh != null) Destroy(currentMesh);
+            SpawnModel(currentMeshIndex, null);
+            //LoadTexture(currentMeshIndex);
+            currentMeshIndex++;
+        }
     }
 
     private void SpawnModel(int binIndex, GameObject parent)
     {
-        return;
         if (binIndex >= Result.ModelsBIN.Header.ModelCount)
         {
             Debug.LogWarning("binIndex out of range!");
@@ -370,7 +388,7 @@ public class AlienLevelLoader : MonoBehaviour
                         }
                     }
                 }
-                Align(Stream, 16);
+                TestProject.Utilities.Align(ref Stream, 16);
             }
 
             if (InVertices.Count == 0) continue;
@@ -707,28 +725,6 @@ public class AlienLevelLoader : MonoBehaviour
         if (TableIndex == 0) return Result.LevelTextures;
         if (TableIndex == 2) return Result.GlobalTextures;
         throw new Exception("Texture bank can only be 0 or 2");
-    }
-
-    GameObject currentMesh = null;
-    int currentMeshIndex = 0;
-    void Update()
-    {
-        if (LOAD_COMMANDS_PAK) return;
-        if (Input.GetKeyDown(KeyCode.P))
-        {
-            if (currentMesh != null) Destroy(currentMesh);
-            SpawnModel(currentMeshIndex, null);
-            //LoadTexture(currentMeshIndex);
-            currentMeshIndex++;
-        }
-    }
-
-    public void Align(BinaryReader reader, int val)
-    {
-        while (reader.BaseStream.Position % val != 0)
-        {
-            reader.ReadByte();
-        }
     }
 
     enum alien_slot_ids

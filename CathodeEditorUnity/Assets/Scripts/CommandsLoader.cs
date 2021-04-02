@@ -10,7 +10,8 @@ using CathodeLib;
 public class CommandsLoader : MonoBehaviour
 {
     private CommandsPAK commandsPAK = null;
-    private List<alien_reds_entry> redsBIN;
+    private List<int> redsBIN;
+    private List<PreloadedFlowgraphContent> preloadedContent = new List<PreloadedFlowgraphContent>();
 
     UInt32 ModelReferenceID = 0;
     void Start()
@@ -20,17 +21,57 @@ public class CommandsLoader : MonoBehaviour
     }
 
     //Test code to load in everything that has a position: note, the hierarchy of objects needs to be considered here
-    public void LoadCommandsPAK(string LEVEL_NAME, List<alien_reds_entry> redsbin, System.Action<int, GameObject> loadModelCallback)
+    public IEnumerator LoadCommandsPAK(string LEVEL_NAME, List<int> redsbin, System.Action<int, GameObject> loadModelCallback)
     {
         string basePath = LEVEL_NAME + "\\";
         commandsPAK = new CommandsPAK(basePath + @"WORLD\COMMANDS.PAK");
         redsBIN = redsbin;
+
+        for (int i = 0; i < commandsPAK.AllFlowgraphs.Count; i++)
+        {
+            preloadedContent.Add(PreloadFlowgraphContent(commandsPAK.AllFlowgraphs[i]));
+        }
 
         for (int i = 0; i < commandsPAK.EntryPoints.Count; i++)
         {
             GameObject thisFlowgraphGO = new GameObject(commandsPAK.EntryPoints[i].name);
             StartCoroutine(RecursiveLoad(commandsPAK.EntryPoints[i], thisFlowgraphGO, loadModelCallback));
         }
+
+        yield break;
+    }
+
+    private PreloadedFlowgraphContent PreloadFlowgraphContent(CathodeFlowgraph flowgraph)
+    {
+        PreloadedFlowgraphContent content = new PreloadedFlowgraphContent();
+        content.flowraphID = flowgraph.nodeID;
+        List<CathodeNodeEntity> models = GetAllOfType(ref flowgraph, ModelReferenceID);
+        for (int i = 0; i < models.Count; i++)
+        {
+            CathodeNodeEntity thisModel = models[i];
+            List<int> modelIndexes = new List<int>();
+            List<UInt32> resourceID = new List<UInt32>();
+            foreach (CathodeParameterReference paramRef in thisModel.nodeParameterReferences)
+            {
+                CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
+                if (param == null) continue;
+                if (param.dataType != CathodeDataType.SHORT_GUID) continue;
+                resourceID.Add(((CathodeResource)param).resourceID);
+            }
+            for (int x = 0; x < resourceID.Count; x++)
+            {
+                List<CathodeResourceReference> resRef = flowgraph.GetResourceReferencesByID(resourceID[x]);
+                for (int y = 0; y < resRef.Count; y++)
+                {
+                    if (resRef[y].entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) continue; //Ignoring collision maps, etc, for now
+                    for (int p = 0; p < resRef[y].entryCountREDS; p++) modelIndexes.Add(redsBIN[resRef[y].entryIndexREDS] + p);
+                }
+            }
+            content.nodeModelIDs.Add(modelIndexes);
+            content.nodeTransforms.Add(GetTransform(ref thisModel));
+            content.nodeNames.Add(NodeDB.GetNodeTypeName(thisModel.nodeType, ref commandsPAK) + ": " + NodeDB.GetFriendlyName(thisModel.nodeID));
+        }
+        return content;
     }
 
     private IEnumerator RecursiveLoad(CathodeFlowgraph flowgraph, GameObject parentTransform, System.Action<int, GameObject> loadModelCallback)
@@ -48,18 +89,14 @@ public class CommandsLoader : MonoBehaviour
             StartCoroutine(RecursiveLoad(nextCall, nextFlowgraphGO, loadModelCallback));
         }
 
-        List<CathodeNodeEntity> models = GetAllOfType(ref flowgraph, ModelReferenceID);
-        for (int i = 0; i < models.Count; i++)
+        PreloadedFlowgraphContent content = preloadedContent.FirstOrDefault(o => o.flowraphID == flowgraph.nodeID);
+        for (int i = 0; i < content.nodeNames.Count; i++)
         {
-            CathodeNodeEntity thisModel = models[i];
-
-            PosAndRot trans = GetTransform(ref thisModel);
-            GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(thisModel.nodeType, ref commandsPAK) + ": " + NodeDB.GetFriendlyName(thisModel.nodeID));
+            GameObject thisNodeGO = new GameObject(content.nodeNames[i]);
             thisNodeGO.transform.parent = parentTransform.transform;
-            thisNodeGO.transform.localPosition = trans.position;
-            thisNodeGO.transform.localRotation = trans.rotation;
-
-            LoadModelNode(ref thisModel, ref flowgraph, thisNodeGO, loadModelCallback);
+            thisNodeGO.transform.localPosition = content.nodeTransforms[i].position;
+            thisNodeGO.transform.localRotation = content.nodeTransforms[i].rotation;
+            for (int x = 0; x < content.nodeModelIDs[i].Count; x++) loadModelCallback(content.nodeModelIDs[i][x], thisNodeGO);
         }
 
         /*
@@ -122,33 +159,14 @@ public class CommandsLoader : MonoBehaviour
         }
         return toReturn;
     }
+}
 
-    private List<UInt32> GetResource(ref CathodeNodeEntity node)
-    {
-        List<UInt32> resources = new List<UInt32>();
-        foreach (CathodeParameterReference paramRef in node.nodeParameterReferences)
-        {
-            CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
-            if (param == null) continue;
-            if (param.dataType != CathodeDataType.SHORT_GUID) continue;
-            resources.Add(((CathodeResource)param).resourceID);
-        }
-        return resources;
-    }
-
-    private void LoadModelNode(ref CathodeNodeEntity node, ref CathodeFlowgraph flowgraph, GameObject thisNodeGO, System.Action<int, GameObject> loadModelCallback)
-    {
-        List<UInt32> resourceID = GetResource(ref node);
-        for (int i = 0; i < resourceID.Count; i++)
-        {
-            List<CathodeResourceReference> resRef = flowgraph.GetResourceReferencesByID(resourceID[i]);
-            for (int x = 0; x < resRef.Count; x++)
-            {
-                if (resRef[x].entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) continue; //Ignoring collision maps, etc, for now
-                for (int p = 0; p < resRef[x].entryCountREDS; p++) loadModelCallback(redsBIN[resRef[x].entryIndexREDS].ModelIndex + p, thisNodeGO);
-            }
-        }
-    }
+class PreloadedFlowgraphContent
+{
+    public UInt32 flowraphID;
+    public List<string> nodeNames = new List<string>();
+    public List<List<int>> nodeModelIDs = new List<List<int>>();
+    public List<PosAndRot> nodeTransforms = new List<PosAndRot>();
 }
 
 public class PosAndRot
