@@ -4,7 +4,6 @@ using UnityEngine;
 using TestProject;
 using System.IO;
 using System;
-using CATHODE;
 using System.Linq;
 
 public class test2 : MonoBehaviour
@@ -14,9 +13,11 @@ public class test2 : MonoBehaviour
     Texture2D[] LoadedTexturesLevel;
     GameObjectHolder[] LoadedModels;
 
+    [SerializeField] private bool LOAD_COMMANDS_PAK = false;
+    [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
+
     void Start()
     {
-        string LEVEL_NAME = "BSP_TORRENS";
         string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
 
         //Parse content
@@ -55,9 +56,16 @@ public class test2 : MonoBehaviour
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
+        for (int i = 0; i < Result.ModelsBIN.Models.Count; i++)
+        {
+            GameObject thisBin = new GameObject(Result.ModelsBIN.ModelFilePaths[i]);
+            SpawnModel(i, thisBin);
+        }
+
+        if (!LOAD_COMMANDS_PAK) return;
         //Populate scene with positioned models 
         CommandsLoader newTest = new CommandsLoader();
-        newTest.LoadCommandsPAK(LEVEL_NAME, Result.RenderableREDS.Entries, SpawnModel);
+        newTest.LoadCommandsPAK(levelPath, Result.RenderableREDS.Entries, SpawnModel);
     }
 
     private void SpawnModel(int binIndex, GameObject parent)
@@ -73,13 +81,15 @@ public class test2 : MonoBehaviour
             return;
         }
         GameObject newModelSpawn = new GameObject();
-        newModelSpawn.transform.parent = parent.transform;
+        if (parent != null) newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
         newModelSpawn.transform.localRotation = Quaternion.identity;
         newModelSpawn.transform.localScale = LoadedModels[binIndex].LocalScale;
         newModelSpawn.name = LoadedModels[binIndex].Name;
         newModelSpawn.AddComponent<MeshFilter>().mesh = LoadedModels[binIndex].MainMesh;
         newModelSpawn.AddComponent<MeshRenderer>().material = LoadedModels[binIndex].MainMaterial;
+
+        if (!LOAD_COMMANDS_PAK) currentMesh = newModelSpawn;
     }
 
     private Texture2D LoadTexture(int EntryIndex, int paktype = 0, bool loadV1 = true)
@@ -215,7 +225,10 @@ public class test2 : MonoBehaviour
             List<Vector2> InUVs2 = new List<Vector2>();
             List<Vector2> InUVs3 = new List<Vector2>();
             List<Vector2> InUVs7 = new List<Vector2>();
-            List<BoneWeight1> InBoneWeights = new List<BoneWeight1>();
+
+            //TODO: implement skeleton lookup for the indexes
+            List<Vector4> InBoneIndexes = new List<Vector4>(); //The indexes of 4 bones that affect each vertex
+            List<Vector4> InBoneWeights = new List<Vector4>(); //The weights for each bone
 
             for (int VertexArrayIndex = 0; VertexArrayIndex < Elements.Count; ++VertexArrayIndex)
             {
@@ -272,7 +285,7 @@ public class test2 : MonoBehaviour
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_BI:
-                                                //skinned mesh joints
+                                                InBoneIndexes.Add(Value);
                                                 break;
                                         }
                                         break;
@@ -285,7 +298,8 @@ public class test2 : MonoBehaviour
                                         switch (Input.ShaderSlot)
                                         {
                                             case alien_vertex_input_slot.AlienVertexInputSlot_BW:
-                                                //skinned mesh binding weights
+                                                float Sum = Value.x + Value.y + Value.z + Value.w;
+                                                InBoneWeights.Add(Value / Sum);
                                                 break;
                                             case alien_vertex_input_slot.AlienVertexInputSlot_UV:
                                                 InUVs2.Add(new Vector2(Value.x, Value.y));
@@ -366,7 +380,7 @@ public class test2 : MonoBehaviour
             thisMesh.SetUVs(2, InUVs2);
             thisMesh.SetUVs(3, InUVs3);
             thisMesh.SetUVs(7, InUVs7);
-            //thisMesh.SetBoneWeights( = InBoneWeights.ToArray();
+            //thisMesh.SetBoneWeights(InBoneWeights.ToArray());
             thisMesh.RecalculateBounds();
             thisMesh.RecalculateNormals();
             thisMesh.RecalculateTangents();
@@ -376,6 +390,9 @@ public class test2 : MonoBehaviour
             ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.MainMaterial = MakeMaterial(Model.MaterialLibraryIndex);
+
+
+
             LoadedModels[BINIndex] = ThisModelPart;
         }
     }
@@ -408,8 +425,8 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 SlotOffsets.Add(alien_slot_ids.OCCLUSION);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -452,8 +469,8 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 SlotOffsets.Add(alien_slot_ids.OCCLUSION);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -470,8 +487,8 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.WRINKLE_MASK);
                 SlotOffsets.Add(alien_slot_ids.WRINKLE_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
@@ -483,7 +500,7 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 break;
 
@@ -512,7 +529,7 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.EMISSIVE);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
                 SlotOffsets.Add(alien_slot_ids.BURN_THROUGH);
                 SlotOffsets.Add(alien_slot_ids.LIQUIFY);
@@ -523,11 +540,11 @@ public class test2 : MonoBehaviour
                 break;
 
             case alien_shader_category.AlienShaderCategory_FogPlane:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_0);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_1);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 // TODO: Should be 'DiffuseMapStatic' - but I am not using that yet.  In order to keep the light cones
                 //  visually appealing and not slabs of solid white, I am using normal diffuse for now.
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_STATIC);
                 break;
 
             case alien_shader_category.AlienShaderCategory_Debug:
@@ -558,7 +575,7 @@ public class test2 : MonoBehaviour
             case alien_shader_category.AlienShaderCategory_LowLODCharacter:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ROUGHNESS_METALLIC);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.LOW_LOD_CHARACTER_MASK);
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
@@ -587,6 +604,39 @@ public class test2 : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 break;
 
+            case alien_shader_category.AlienShaderCategory_LightMapEnvironment:
+                SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                SlotOffsets.Add(alien_slot_ids.OPACITY);
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE); //Occlusion?
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                break;
+
+            case alien_shader_category.AlienShaderCategory_Terrain:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                SlotOffsets.Add(alien_slot_ids.NONE);
+                break;
+
             // TODO: Remove this after we handle all possible shader categories.
             default:
                 return new Material(UnityEngine.Shader.Find("Diffuse")); //todo-mattf: flag this in a colour
@@ -610,13 +660,11 @@ public class test2 : MonoBehaviour
             }
         }
 
-        Material ToReturn = new Material(UnityEngine.Shader.Find("Standard"));
+        Material ToReturn = new Material(UnityEngine.Shader.Find("Standard (Specular setup)"));
         for (int i = 0; i < SlotOffsets.Count; i++)
         {
             switch (SlotOffsets[i])
             {
-                case alien_slot_ids.DIFFUSE_MAP_0:
-                case alien_slot_ids.DIFFUSE_MAP_1:
                 case alien_slot_ids.DIFFUSE_MAP:
                     if (availableTextures.Count > i) ToReturn.SetTexture("_MainTex", availableTextures[i]);
                     break;
@@ -629,8 +677,8 @@ public class test2 : MonoBehaviour
                 case alien_slot_ids.OCCLUSION:
                     if (availableTextures.Count > i) ToReturn.SetTexture("_OcclusionMap", availableTextures[i]);
                     break;
-                case alien_slot_ids.ROUGHNESS_METALLIC:
-                    if (availableTextures.Count > i) ToReturn.SetTexture("_MetallicGlossMap", availableTextures[i]);
+                case alien_slot_ids.SPECULAR_MAP:
+                    if (availableTextures.Count > i) ToReturn.SetTexture("_SpecGlossMap", availableTextures[i]); //TODO
                     break;
                 case alien_slot_ids.NORMAL_MAP:
                     if (availableTextures.Count > i) ToReturn.SetTexture("_BumpMap", availableTextures[i]);
@@ -654,10 +702,12 @@ public class test2 : MonoBehaviour
     int currentMeshIndex = 1255;
     void Update()
     {
+        return;
+        if (LOAD_COMMANDS_PAK) return;
         if (Input.GetKeyDown(KeyCode.P))
         {
             if (currentMesh != null) Destroy(currentMesh);
-            //currentMesh = LoadModel(currentMeshIndex);
+            SpawnModel(currentMeshIndex, null);
             //LoadTexture(currentMeshIndex);
             currentMeshIndex++;
         }
@@ -677,11 +727,12 @@ public class test2 : MonoBehaviour
         DIFFUSE_MAP,
         COLOR_RAMP_MAP,
         SECONDARY_DIFFUSE_MAP,
+        DIFFUSE_MAP_STATIC,
         OPACITY,
         NORMAL_MAP,
         SECONDARY_NORMAL_MAP,
-        ROUGHNESS_METALLIC,
-        SECONDARY_ROUGHNESS_METALLIC,
+        SPECULAR_MAP,
+        SECONDARY_SPECULAR_MAP,
         ENVIRONMENT_MAP,
         OCCLUSION,
         FRESNEL_LUT,
@@ -700,8 +751,6 @@ public class test2 : MonoBehaviour
         LIQUIFY,
         LIQUIFY2,
         COLOR_RAMP,
-        DIFFUSE_MAP_0,
-        DIFFUSE_MAP_1,
         FLOW_MAP,
         ALPHA_MASK,
         LOW_LOD_CHARACTER_MASK,
@@ -710,6 +759,7 @@ public class test2 : MonoBehaviour
         MASKING_MAP,
         ATMOSPHERE_MAP,
         DETAIL_MAP,
+        LIGHT_MAP
     }
 }
 

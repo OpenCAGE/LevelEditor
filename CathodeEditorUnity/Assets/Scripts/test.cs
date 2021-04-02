@@ -4,7 +4,7 @@ using UnityEngine;
 using System.Linq;
 using System.IO;
 using System;
-using CATHODE;
+using TestProject.File_Handlers.Commands;
 using CathodeLib;
 
 public class CommandsLoader
@@ -15,7 +15,7 @@ public class CommandsLoader
     //Test code to load in everything that has a position: note, the hierarchy of objects needs to be considered here
     public void LoadCommandsPAK(string LEVEL_NAME, List<alien_reds_entry> redsbin, System.Action<int, GameObject> loadModelCallback)
     {
-        string basePath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME + "\\";
+        string basePath = LEVEL_NAME + "\\";
         commandsPAK = new CommandsPAK(basePath + @"WORLD\COMMANDS.PAK");
         redsBIN = redsbin;
 
@@ -111,7 +111,7 @@ public class CommandsLoader
             Vec3 position = ((CathodeTransform)param).position;
             Vec3 rotation = ((CathodeTransform)param).rotation;
             toReturn.position = new Vector3(position.x, position.y, position.z);
-            toReturn.rotation = Quaternion.Euler(rotation.y, rotation.x, rotation.z); //TODO: fix this in the actual parser lol
+            toReturn.rotation = Quaternion.Euler(rotation.x, rotation.y, rotation.z);
         }
         return toReturn;
     }
