@@ -5,6 +5,7 @@ using TestProject;
 using System.IO;
 using System;
 using System.Linq;
+using UnityEditor;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -55,6 +56,8 @@ public class AlienLevelLoader : MonoBehaviour
             if (newTex != null) LoadedTexturesLevel[binIndex] = newTex;
             TextureLoadTrackerLevel[binIndex] = true;
         }
+
+        return;
 
         //Load all models
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
@@ -149,11 +152,6 @@ public class AlienLevelLoader : MonoBehaviour
             Debug.LogWarning("LENGTH ZERO - NOT LOADING");
             return null;
         }
-        if (InTexture.Type == 7) 
-        {
-            Debug.LogWarning("CUBEMAP! NOT CURRENTLY SUPPORTED");
-            return null;
-        }
 
         UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
         switch (InTexture.Format)
@@ -193,14 +191,36 @@ public class AlienLevelLoader : MonoBehaviour
                 break;
         }
 
-        Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-        texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
         BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.PAK.DataStart));
         tempReader.BaseStream.Position = Entry.Offset;
-        texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
-        tempReader.Close();
-        texture.Apply();
-        return texture;
+
+        if (InTexture.Type == 7)
+        {
+            Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
+            cubemapTex.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
+            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
+            cubemapTex.Apply();
+
+            //AssetDatabase.CreateAsset(cubemapTex, "Assets/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
+
+            tempReader.Close();
+            return null;
+        }
+        else
+        {
+            Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
+            texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
+            texture.Apply();
+
+            tempReader.Close();
+            return texture;
+        }
     }
 
     private void LoadModel(int EntryIndex)
