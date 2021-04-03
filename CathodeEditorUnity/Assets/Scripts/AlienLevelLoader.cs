@@ -22,7 +22,13 @@ public class AlienLevelLoader : MonoBehaviour
 
     void Start()
     {
+        if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
+
+#if UNITY_EDITOR
         levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
+#else
+        levelPath = "DATA/ENV/PRODUCTION/" + LEVEL_NAME;
+#endif
         Result = new alien_level();
 
         //Parse content
@@ -56,8 +62,6 @@ public class AlienLevelLoader : MonoBehaviour
             if (newTex != null) LoadedTexturesLevel[binIndex] = newTex;
             TextureLoadTrackerLevel[binIndex] = true;
         }
-
-        return;
 
         //Load all models
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
@@ -206,7 +210,7 @@ public class AlienLevelLoader : MonoBehaviour
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
             cubemapTex.Apply();
 
-            //AssetDatabase.CreateAsset(cubemapTex, "Assets/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
+            //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
 
             tempReader.Close();
             return null;

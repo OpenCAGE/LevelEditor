@@ -217,7 +217,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LOAD_COMMANDS_PAK: 1
-  LEVEL_NAME: TECH_RND_HZDLAB
+  LEVEL_NAME: dlc/ChallengeMap4
 --- !u!1 &407092648
 GameObject:
   m_ObjectHideFlags: 0
