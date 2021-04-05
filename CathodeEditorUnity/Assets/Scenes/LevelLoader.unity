@@ -217,7 +217,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LOAD_COMMANDS_PAK: 1
-  LEVEL_NAME: dlc/ChallengeMap4
+  LEVEL_NAME: bsp_torrens
 --- !u!1 &407092648
 GameObject:
   m_ObjectHideFlags: 0
