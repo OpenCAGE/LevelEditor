@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestProject.File_Handlers.Models
+namespace CATHODE.Models
 {
     class ModelsMVR
     {
@@ -24,7 +24,7 @@ namespace TestProject.File_Handlers.Models
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
-struct alien_mvr_header
+public struct alien_mvr_header
 {
     public uint Unknown0_;
     public uint EntryCount;
@@ -33,7 +33,7 @@ struct alien_mvr_header
 };
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
-struct alien_mvr_entry
+public struct alien_mvr_entry
 {
     public UnityEngine.Matrix4x4 Transform;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
@@ -60,7 +60,7 @@ struct alien_mvr_entry
     public int Unknown4__;
 };
 
-struct alien_mvr
+public struct alien_mvr
 {
     public alien_mvr_header Header;
     public List<alien_mvr_entry> Entries;

@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestProject.File_Handlers.Models
+namespace CATHODE.Models
 {
     public class ModelsMTL
     {

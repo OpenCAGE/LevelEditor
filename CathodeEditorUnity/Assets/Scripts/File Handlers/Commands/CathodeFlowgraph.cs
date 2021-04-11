@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestProject.File_Handlers.Commands
+namespace CATHODE.Commands
 {
     /* Blocks of data in each compiled flowgraph */
     public enum CathodeScriptBlocks

@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using TestProject;
+using CATHODE;
 using System.IO;
 using System;
 using System.Linq;
@@ -34,16 +34,17 @@ public class AlienLevelLoader : MonoBehaviour
 
         //Parse content
         string rootPath = (LEVEL_NAME.ToUpper().Substring(0, 3) == "DLC") ? levelPath + "/.." : levelPath;
-        Result.GlobalTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
-        Result.LevelTextures = TestProject.File_Handlers.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
+        Result.GlobalTextures = CATHODE.Textures.TexturePAK.Load(rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        Result.LevelTextures = CATHODE.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
         Result.ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
-        Result.ModelsMTL = TestProject.File_Handlers.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
-        Result.ModelsBIN = TestProject.File_Handlers.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
-        Result.ModelsPAK = TestProject.File_Handlers.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
-        Result.RenderableREDS = TestProject.File_Handlers.Misc.RenderableElementsBIN.Load(levelPath + "/WORLD/REDS.BIN");
-        Result.ShadersPAK = TestProject.File_Handlers.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
+        Result.ModelsMTL = CATHODE.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
+        Result.ModelsBIN = CATHODE.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
+        Result.ModelsPAK = CATHODE.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
+        Result.ModelsMVR = CATHODE.Models.ModelsMVR.Load(levelPath + "/WORLD/MODELS.MVR");
+        Result.RenderableREDS = CATHODE.Misc.RenderableElementsBIN.Load(levelPath + "/WORLD/REDS.BIN");
+        Result.ShadersPAK = CATHODE.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
-        Result.ShadersIDXRemap = TestProject.File_Handlers.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
+        Result.ShadersIDXRemap = CATHODE.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
         LoadedTexturesGlobal = new AlienTexture[Result.GlobalTextures.BIN.Header.EntryCount];
@@ -416,7 +417,7 @@ public class AlienLevelLoader : MonoBehaviour
                         }
                     }
                 }
-                TestProject.Utilities.Align(ref Stream, 16);
+                CATHODE.Utilities.Align(ref Stream, 16);
             }
 
             if (InVertices.Count == 0) continue;
@@ -950,6 +951,7 @@ public class alien_level
     public alien_mtl ModelsMTL;
     public alien_pak_model ModelsPAK;
     public alien_model_bin ModelsBIN;
+    public alien_mvr ModelsMVR;
 
     public alien_textures GlobalTextures;
     public alien_textures LevelTextures;

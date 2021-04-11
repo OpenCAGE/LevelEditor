@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestProject.File_Handlers.Commands
+namespace CATHODE.Commands
 {
     /* Data types in the CATHODE scripting system */
     public enum CathodeDataType
