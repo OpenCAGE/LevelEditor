@@ -46,8 +46,8 @@ namespace TestProject.File_Handlers.Commands
                         break;
                     case CathodeDataType.DIRECTION:
                         CathodeVector3 cVector = (CathodeVector3)parameter;
+                        writer.Write(cVector.value.y); //NOTE: this is not an error on my part, this is how it's saved (i think)!
                         writer.Write(cVector.value.x);
-                        writer.Write(cVector.value.y);
                         writer.Write(cVector.value.z);
                         break;
                     case CathodeDataType.INTEGER:
@@ -215,7 +215,8 @@ namespace TestProject.File_Handlers.Commands
                         break;
                     case CathodeDataType.DIRECTION:
                         this_parameter = new CathodeVector3();
-                        ((CathodeVector3)this_parameter).value = new UnityEngine.Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+                        float __x, __y, __z; __y = reader.ReadSingle(); __x = reader.ReadSingle(); __z = reader.ReadSingle(); //Y,X,Z!
+                        ((CathodeVector3)this_parameter).value = new UnityEngine.Vector3(__x, __y, __z);
                         break;
                     case CathodeDataType.ENUM:
                         this_parameter = new CathodeEnum();

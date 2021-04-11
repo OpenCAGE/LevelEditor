@@ -11,16 +11,19 @@ public class CommandsLoader : MonoBehaviour
 {
     private CommandsPAK commandsPAK = null;
     private List<int> redsBIN;
-    private List<PreloadedFlowgraphContent> preloadedContent = new List<PreloadedFlowgraphContent>();
+    private List<PreloadedFlowgraphContent> preloadedModelReferenceNodes = new List<PreloadedFlowgraphContent>();
+    private List<PreloadedFlowgraphContent> preloadedPlayerTriggerBoxNodes = new List<PreloadedFlowgraphContent>();
 
     UInt32 ModelReferenceID = 0;
+    UInt32 PlayerTriggerBoxID = 0;
     void Start()
     {
         byte[] ModelReferenceIDBytes = new byte[4] { 0x94, 0xA8, 0xB4, 0xB9 };
+        byte[] PlayerTriggerBoxIDBytes = new byte[4] { 0xD3, 0xFA, 0x3E, 0x2F };
         ModelReferenceID = BitConverter.ToUInt32(ModelReferenceIDBytes, 0);
+        PlayerTriggerBoxID = BitConverter.ToUInt32(PlayerTriggerBoxIDBytes, 0);
     }
 
-    //Test code to load in everything that has a position: note, the hierarchy of objects needs to be considered here
     public IEnumerator LoadCommandsPAK(string LEVEL_NAME, List<int> redsbin, System.Action<int, GameObject> loadModelCallback)
     {
         string basePath = LEVEL_NAME + "\\";
@@ -29,7 +32,8 @@ public class CommandsLoader : MonoBehaviour
 
         for (int i = 0; i < commandsPAK.AllFlowgraphs.Count; i++)
         {
-            preloadedContent.Add(PreloadFlowgraphContent(commandsPAK.AllFlowgraphs[i]));
+            preloadedModelReferenceNodes.Add(PreloadFlowgraphContent(commandsPAK.AllFlowgraphs[i], ModelReferenceID));
+            preloadedPlayerTriggerBoxNodes.Add(PreloadFlowgraphContent(commandsPAK.AllFlowgraphs[i], PlayerTriggerBoxID));
         }
 
         for (int i = 0; i < commandsPAK.EntryPoints.Count; i++)
@@ -41,17 +45,17 @@ public class CommandsLoader : MonoBehaviour
         yield break;
     }
 
-    private PreloadedFlowgraphContent PreloadFlowgraphContent(CathodeFlowgraph flowgraph)
+    private PreloadedFlowgraphContent PreloadFlowgraphContent(CathodeFlowgraph flowgraph, uint typeID)
     {
         PreloadedFlowgraphContent content = new PreloadedFlowgraphContent();
         content.flowraphID = flowgraph.nodeID;
-        List<CathodeNodeEntity> models = GetAllOfType(ref flowgraph, ModelReferenceID);
+        List<CathodeNodeEntity> models = GetAllOfType(ref flowgraph, typeID);
         for (int i = 0; i < models.Count; i++)
         {
-            CathodeNodeEntity thisModel = models[i];
+            CathodeNodeEntity thisNode = models[i];
             List<int> modelIndexes = new List<int>();
             List<UInt32> resourceID = new List<UInt32>();
-            foreach (CathodeParameterReference paramRef in thisModel.nodeParameterReferences)
+            foreach (CathodeParameterReference paramRef in thisNode.nodeParameterReferences)
             {
                 CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
                 if (param == null) continue;
@@ -68,8 +72,9 @@ public class CommandsLoader : MonoBehaviour
                 }
             }
             content.nodeModelIDs.Add(modelIndexes);
-            content.nodeTransforms.Add(GetTransform(ref thisModel));
-            content.nodeNames.Add(NodeDB.GetNodeTypeName(thisModel.nodeType, ref commandsPAK) + ": " + NodeDB.GetFriendlyName(thisModel.nodeID));
+            content.nodeTransforms.Add(GetTransform(ref thisNode));
+            content.half_dimensions = GetHalfDimensions(ref thisNode);
+            content.nodeNames.Add(NodeDB.GetNodeTypeName(thisNode.nodeType, ref commandsPAK) + ": " + NodeDB.GetFriendlyName(thisNode.nodeID));
         }
         return content;
     }
@@ -89,7 +94,15 @@ public class CommandsLoader : MonoBehaviour
             StartCoroutine(RecursiveLoad(nextCall, nextFlowgraphGO, loadModelCallback));
         }
 
-        PreloadedFlowgraphContent content = preloadedContent.FirstOrDefault(o => o.flowraphID == flowgraph.nodeID);
+        StartCoroutine(LoadModelReferenceNodes(flowgraph, parentTransform, loadModelCallback));
+        StartCoroutine(LoadPlayerTriggerBoxNodes(flowgraph, parentTransform, loadModelCallback));
+
+        yield break;
+    }
+
+    private IEnumerator LoadModelReferenceNodes(CathodeFlowgraph flowgraph, GameObject parentTransform, System.Action<int, GameObject> loadModelCallback)
+    {
+        PreloadedFlowgraphContent content = preloadedModelReferenceNodes.FirstOrDefault(o => o.flowraphID == flowgraph.nodeID);
         for (int i = 0; i < content.nodeNames.Count; i++)
         {
             GameObject thisNodeGO = new GameObject(content.nodeNames[i]);
@@ -98,44 +111,20 @@ public class CommandsLoader : MonoBehaviour
             thisNodeGO.transform.localRotation = content.nodeTransforms[i].rotation;
             for (int x = 0; x < content.nodeModelIDs[i].Count; x++) loadModelCallback(content.nodeModelIDs[i][x], thisNodeGO);
         }
-
-        /*
-        List<CathodeNodeEntity> sounds = GetAllOfType(flowgraph, new string[] { "SoundPlaybackBaseClass", "SoundObject", "Sound" });
-        foreach (CathodeNodeEntity node in sounds)
+        yield break;
+    }
+    private IEnumerator LoadPlayerTriggerBoxNodes(CathodeFlowgraph flowgraph, GameObject parentTransform, System.Action<int, GameObject> loadModelCallback)
+    {
+        PreloadedFlowgraphContent content = preloadedPlayerTriggerBoxNodes.FirstOrDefault(o => o.flowraphID == flowgraph.nodeID);
+        for (int i = 0; i < content.nodeNames.Count; i++)
         {
-            PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            GameObject newCube = new GameObject(NodeDB.GetName(node.nodeType));
-            newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
-            newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
-            newCube.AddComponent<AudioSource>();
-            continue;
-        }
-
-        List<CathodeNodeEntity> particles = GetAllOfType(flowgraph, new string[] { "ParticleEmitterReference", "RibbonEmitterReference", "GPU_PFXEmitterReference" });
-        foreach (CathodeNodeEntity node in particles)
-        {
-            PosAndRot thisNodePos = GetTransform(node) + stackedTransform;
-            GameObject newCube = new GameObject(NodeDB.GetName(node.nodeType));
-            newCube.transform.position = new Vector3(thisNodePos.position.x, thisNodePos.position.y, thisNodePos.position.z);
-            newCube.transform.eulerAngles = new Vector3(thisNodePos.rotation.x, thisNodePos.rotation.y, thisNodePos.rotation.z);
-            newCube.AddComponent<ParticleSystem>().emissionRate = 0;
-            continue;
-        }
-        */
-
-        /*
-        List<CathodeNodeEntity> lights = GetAllOfType(flowgraph, new string[] { "LightReference" });
-        foreach (CathodeNodeEntity node in lights)
-        {
-            PosAndRot trans = GetTransform(node);
-            GameObject thisNodeGO = new GameObject(NodeDB.GetNodeTypeName(node.nodeType, commandsPAK) + ": " + NodeDB.GetFriendlyName(node.nodeID));
+            GameObject thisNodeGO = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            thisNodeGO.name = content.nodeNames[i];
             thisNodeGO.transform.parent = parentTransform.transform;
-            thisNodeGO.transform.localPosition = trans.position;
-            thisNodeGO.transform.localRotation = trans.rotation;
-            thisNodeGO.AddComponent<Light>(); //todo: pull properties from game
+            thisNodeGO.transform.localPosition = content.nodeTransforms[i].position;
+            thisNodeGO.transform.localRotation = content.nodeTransforms[i].rotation;
+            thisNodeGO.transform.localScale = new Vector3(content.half_dimensions.y, content.half_dimensions.z, content.half_dimensions.x) * 2; //i dont think this is right
         }
-        */
-
         yield break;
     }
 
@@ -159,6 +148,20 @@ public class CommandsLoader : MonoBehaviour
         }
         return toReturn;
     }
+    private Vector3 GetHalfDimensions(ref CathodeNodeEntity node)
+    {
+        Vector3 toReturn = new Vector3(0,0,0);
+        foreach (CathodeParameterReference paramRef in node.nodeParameterReferences)
+        {
+            CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
+            if (param == null) continue;
+            if (param.dataType != CathodeDataType.DIRECTION) continue;
+            CathodeVector3 transform = (CathodeVector3)param;
+            toReturn = transform.value;
+            break;
+        }
+        return toReturn;
+    }
 }
 
 class PreloadedFlowgraphContent
@@ -167,6 +170,7 @@ class PreloadedFlowgraphContent
     public List<string> nodeNames = new List<string>();
     public List<List<int>> nodeModelIDs = new List<List<int>>();
     public List<PosAndRot> nodeTransforms = new List<PosAndRot>();
+    public Vector3 half_dimensions = new Vector3(0, 0, 0);
 }
 
 public class PosAndRot
