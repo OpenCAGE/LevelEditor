@@ -10,7 +10,6 @@ using UnityEditor;
 public class AlienLevelLoader : MonoBehaviour
 {
     alien_level Result = null;
-    CommandsLoader commandsLoader = null;
 
     AlienTexture[] LoadedTexturesGlobal;
     AlienTexture[] LoadedTexturesLevel;
@@ -72,39 +71,21 @@ public class AlienLevelLoader : MonoBehaviour
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
-        //Spawn everything in
-        if (LOAD_COMMANDS_PAK)
-        {
-            commandsLoader = GetComponent<CommandsLoader>();
-            List<int> redsRemaps = new List<int>();
-            for (int i = 0; i < Result.RenderableREDS.Entries.Count; i++)
-            {
-                redsRemaps.Add(Result.RenderableREDS.Entries[i].ModelIndex);
-            }
-            StartCoroutine(commandsLoader.LoadCommandsPAK(levelPath, redsRemaps, SpawnModel));
-        }
-        else
-        {
-            for (int i = 0; i < Result.ModelsBIN.Models.Count; i++)
-            {
-                GameObject thisBin = new GameObject(Result.ModelsBIN.ModelFilePaths[i]);
-                SpawnModel(i, thisBin);
-            }
-        }
-
-        return;
-        //MVR TEST
-        GameObject mvrParent = new GameObject("MVR PARENT");
+        //Populate the level with "movers"
+        GameObject levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisTest = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            thisTest.name = "MVR ENTRY " + i;
-
+            GameObject thisParent = new GameObject(i.ToString());
             Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
-            thisTest.transform.position = m.GetColumn(3);
-            thisTest.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
-            thisTest.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
-            thisTest.transform.parent = mvrParent.transform;
+            thisParent.transform.position = m.GetColumn(3);
+            thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
+            thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
+            thisParent.transform.parent = levelParent.transform;
+            for (int x = 0; x < Result.ModelsMVR.Entries[i].ModelCount; x++)
+            {
+                alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].REDSIndex + x];
+                SpawnModel(RenderableElement.ModelIndex, thisParent); //todo: apply mover specific properties here too, like material!
+            }
         }
     }
 
@@ -866,8 +847,8 @@ public class AlienLevelLoader : MonoBehaviour
                 case alien_slot_ids.SPECULAR_MAP:
                     toReturn.EnableKeyword("_METALLICGLOSSMAP");
                     toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
-                    //toReturn.SetFloat("_Glossiness", 0.1f); //todo
-                    //toReturn.SetFloat("_GlossMapScale", 0.1f); //todo
+                    toReturn.SetFloat("_Glossiness", 0.1f); //todo
+                    toReturn.SetFloat("_GlossMapScale", 0.1f); //todo
                     break;
                 case alien_slot_ids.NORMAL_MAP:
                     toReturn.EnableKeyword("_NORMALMAP");

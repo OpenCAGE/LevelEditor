@@ -53,7 +53,8 @@ public struct alien_mvr_entry
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 9)]
     public int[] Unknowns3_; // NOTE: The 9th and 11th elements seem to be incrementing indices.
     public uint REDSIndex; // Index 45
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+    public uint ModelCount;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
     public int[] Unknowns5_;
     public uint NodeID; // Index 52
     public uint UnknownValue0;
