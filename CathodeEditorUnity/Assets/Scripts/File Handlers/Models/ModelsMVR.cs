@@ -37,9 +37,9 @@ public struct alien_mvr_entry
 {
     public UnityEngine.Matrix4x4 Transform;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
-    public float[] Unknown0__; // NOTE: The 0th element is -Pi on entry 61 of 'hab_airport'.
+    public float[] Unknowns0_; // NOTE: The 0th element is -Pi on entry 61 of 'hab_airport'.
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-    public float[] Unknown1__;
+    public float[] Unknowns1_;
     public float UnknownValue2_;
     public float UnknownValue3_;
     public float UnknownValue4_;
@@ -47,17 +47,22 @@ public struct alien_mvr_entry
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
     public float[] Unknown2f_;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-    public uint[] Unknown2__;
+    public uint[] Unknowns2_;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
     public UnityEngine.Vector3[] UnknownMinMax_; // NOTE: Sometimes I see 'nan's here too.
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-    public int[] Unknown3__; // NOTE: The 9th and 11th elements seem to be incrementing indices.
-    public UnityEngine.Vector3 UnknownV3_;
-    public uint Unknown3_;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 9)]
+    public int[] Unknowns3_; // NOTE: The 9th and 11th elements seem to be incrementing indices.
+    public uint REDSIndex; // Index 45
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+    public int[] Unknowns5_;
+    public uint NodeID; // Index 52
+    public uint UnknownValue0;
+    public uint UnknownIndex;
+    public uint UnknownValue1;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-    public float UnknownValues0_;
+    public float[] Unknowns4_;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-    public int Unknown4__;
+    public int[] Unknowns6_;
 };
 
 public struct alien_mvr

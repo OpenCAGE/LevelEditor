@@ -46,6 +46,10 @@ public class AlienLevelLoader : MonoBehaviour
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
         Result.ShadersIDXRemap = CATHODE.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
 
+        Result.CollisionMap = CATHODE.Misc.CollisionMAP.Load(levelPath + "/WORLD/COLLISION.MAP");
+        Result.EnvironmentMap = CATHODE.Misc.EnvironmentMapBIN.Load(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
+        Result.PhysicsMap = CATHODE.Misc.PhysicsMAP.Load(levelPath + "/WORLD/PHYSICS.MAP");
+
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
         LoadedTexturesGlobal = new AlienTexture[Result.GlobalTextures.BIN.Header.EntryCount];
         LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.BIN.Header.EntryCount];
@@ -86,6 +90,21 @@ public class AlienLevelLoader : MonoBehaviour
                 GameObject thisBin = new GameObject(Result.ModelsBIN.ModelFilePaths[i]);
                 SpawnModel(i, thisBin);
             }
+        }
+
+        return;
+        //MVR TEST
+        GameObject mvrParent = new GameObject("MVR PARENT");
+        for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
+        {
+            GameObject thisTest = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            thisTest.name = "MVR ENTRY " + i;
+
+            Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
+            thisTest.transform.position = m.GetColumn(3);
+            thisTest.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
+            thisTest.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
+            thisTest.transform.parent = mvrParent.transform;
         }
     }
 
@@ -847,8 +866,8 @@ public class AlienLevelLoader : MonoBehaviour
                 case alien_slot_ids.SPECULAR_MAP:
                     toReturn.EnableKeyword("_METALLICGLOSSMAP");
                     toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
-                    toReturn.SetFloat("_Glossiness", 0.1f); //todo
-                    toReturn.SetFloat("_GlossMapScale", 0.1f); //todo
+                    //toReturn.SetFloat("_Glossiness", 0.1f); //todo
+                    //toReturn.SetFloat("_GlossMapScale", 0.1f); //todo
                     break;
                 case alien_slot_ids.NORMAL_MAP:
                     toReturn.EnableKeyword("_NORMALMAP");
@@ -863,22 +882,23 @@ public class AlienLevelLoader : MonoBehaviour
         MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
         BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsCST));
         int baseOffset = Result.ModelsMTL.Header.CSTOffsets[2] + InMaterial.CSTOffsets[2];
-        //Should Shader be Result.ShadersPAK.Shaders[InMaterial.UberShaderIndex]?
-        if (cstIndex.DiffuseIndex >= 0) toReturn.SetColor("_Color", LoadFromCST<Vector4>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.DiffuseIndex]));
-        if (cstIndex.DiffuseUVMultiplierIndex >= 0)
+        if (cstIndex.DiffuseIndex >= 0 && cstIndex.DiffuseIndex < Shader.Header.CSTCounts[2])
+        {
+            toReturn.SetColor("_Color", LoadFromCST<Vector4>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.DiffuseIndex]));
+        }
+        if (cstIndex.DiffuseUVMultiplierIndex >= 0 && cstIndex.DiffuseUVMultiplierIndex < Shader.Header.CSTCounts[2])
         {
             float offset = LoadFromCST<float>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex]);
             toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
         }
-        if (cstIndex.SpecularFactorIndex >= 0)
+        if (cstIndex.SpecularFactorIndex >= 0 && cstIndex.SpecularFactorIndex < Shader.Header.CSTCounts[2])
         {
             float spec = LoadFromCST<float>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.SpecularFactorIndex]);
-            toReturn.SetFloat("_Glossiness", spec); 
+            toReturn.SetFloat("_Glossiness", spec);
             toReturn.SetFloat("_GlossMapScale", spec);
         }
         cstReader.Close();
         */
-
         return toReturn;
     }
     private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
@@ -973,6 +993,8 @@ public class alien_level
     public int MeshCount;
 
     public alien_physics_map PhysicsMap;
+    public alien_environment_map_bin EnvironmentMap;
+    public alien_collision_map CollisionMap;
 
     //alien_animation_dat EnvironmentAnimation;
 
