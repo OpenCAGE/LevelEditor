@@ -78,5 +78,18 @@ namespace CATHODE
             }
             return to_return;
         }
+
+        public static void Write<T>(ref FileStream stream, T aux)
+        {
+            int length = Marshal.SizeOf(aux);
+            IntPtr ptr = Marshal.AllocHGlobal(length);
+            byte[] myBuffer = new byte[length];
+
+            Marshal.StructureToPtr(aux, ptr, true);
+            Marshal.Copy(ptr, myBuffer, 0, length);
+            Marshal.FreeHGlobal(ptr);
+
+            stream.Write(myBuffer, 0, myBuffer.Length);
+        }
     }
 }

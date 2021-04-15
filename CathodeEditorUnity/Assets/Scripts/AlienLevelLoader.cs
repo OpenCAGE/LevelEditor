@@ -39,7 +39,7 @@ public class AlienLevelLoader : MonoBehaviour
         Result.ModelsMTL = CATHODE.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
         Result.ModelsBIN = CATHODE.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
         Result.ModelsPAK = CATHODE.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
-        Result.ModelsMVR = CATHODE.Models.ModelsMVR.Load(levelPath + "/WORLD/MODELS.MVR");
+        Result.ModelsMVR = new CATHODE.Models.ModelsMVR(levelPath + "/WORLD/MODELS.MVR");
         Result.RenderableREDS = CATHODE.Misc.RenderableElementsBIN.Load(levelPath + "/WORLD/REDS.BIN");
         Result.ShadersPAK = CATHODE.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
         //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
@@ -72,10 +72,10 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
-        GameObject levelParent = new GameObject(LEVEL_NAME);
+        levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisParent = new GameObject(i.ToString());
+            GameObject thisParent = new GameObject(i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
             Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
@@ -87,6 +87,23 @@ public class AlienLevelLoader : MonoBehaviour
                 SpawnModel(RenderableElement.ModelIndex, thisParent); //todo: apply mover specific properties here too, like material!
             }
         }
+    }
+    
+    //first saving attempt
+    GameObject levelParent;
+    public void SaveLevel()
+    {
+        for (int i = 0; i < levelParent.transform.childCount; i++)
+        {
+            GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
+            if (mvrEntry.name.Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
+
+            CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.GetEntry(i);
+            thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
+            Result.ModelsMVR.SetEntry(i, thisEntry);
+        }
+
+        Result.ModelsMVR.Save();
     }
 
     GameObject currentMesh = null;
@@ -952,7 +969,7 @@ public class alien_level
     public alien_mtl ModelsMTL;
     public alien_pak_model ModelsPAK;
     public alien_model_bin ModelsBIN;
-    public alien_mvr ModelsMVR;
+    public CATHODE.Models.ModelsMVR ModelsMVR;
 
     public alien_textures GlobalTextures;
     public alien_textures LevelTextures;
