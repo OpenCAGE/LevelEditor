@@ -118,6 +118,10 @@ public class AlienLevelLoader : MonoBehaviour
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
             }
         }
+
+        return;
+        CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
+        //cmdLoader.
     }
     
     //first saving attempt
@@ -559,6 +563,10 @@ public class AlienLevelLoader : MonoBehaviour
             case alien_shader_category.AlienShaderCategory_LightMapEnvironment:
                 toReturn.DiffuseIndex = 12;
                 break;
+
+            case alien_shader_category.AlienShaderCategory_Refraction:
+                toReturn.DiffuseUVMultiplierIndex = 3;
+                break;
         }
 
         return toReturn;
@@ -850,7 +858,6 @@ public class AlienLevelLoader : MonoBehaviour
                     toReturn.SetTexture("_BumpMap", availableTextures[i]);
                     break;
             }
-            //_ALPHATEST_ON if transparent?
         }
 
         //Apply properties
@@ -861,6 +868,11 @@ public class AlienLevelLoader : MonoBehaviour
         {
             Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
             toReturn.SetColor("_Color", colour);
+            if (colour.w != 1)
+            {
+                toReturn.SetFloat("_Mode", 1.0f);
+                toReturn.EnableKeyword("_ALPHATEST_ON");
+            }
         }
         if (CSTIndexValid(cstIndex.DiffuseUVMultiplierIndex, ref Shader))
         {
@@ -876,6 +888,7 @@ public class AlienLevelLoader : MonoBehaviour
         {
             float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.NormalUVMultiplierIndex] * 4));
             toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
+            toReturn.SetFloat("_BumpScale", offset);
         }
         if (CSTIndexValid(cstIndex.OcclusionUVMultiplierIndex, ref Shader))
         {
@@ -886,6 +899,7 @@ public class AlienLevelLoader : MonoBehaviour
         {
             float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularUVMultiplierIndex] * 4));
             toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
+            toReturn.SetFloat("_GlossMapScale", offset);
         }
         if (CSTIndexValid(cstIndex.SpecularFactorIndex, ref Shader))
         {
