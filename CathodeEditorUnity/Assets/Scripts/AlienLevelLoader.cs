@@ -94,6 +94,10 @@ public class AlienLevelLoader : MonoBehaviour
             TextureLoadTrackerLevel[binIndex] = true;
         }
 
+        //Load all materials
+        LoadedMaterials = new Material[Result.ModelsMTL.Header.MaterialCount];
+        for (int i = 0; i < Result.ModelsMTL.Header.MaterialCount; i++) LoadMaterial(i);
+
         //Load all models
         LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
@@ -111,7 +115,7 @@ public class AlienLevelLoader : MonoBehaviour
             for (int x = 0; x < Result.ModelsMVR.Entries[i].ModelCount; x++)
             {
                 alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].REDSIndex + x];
-                SpawnModel(RenderableElement.ModelIndex, thisParent); //todo: apply mover specific properties here too, like material!
+                SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
             }
         }
     }
@@ -133,21 +137,7 @@ public class AlienLevelLoader : MonoBehaviour
         Result.ModelsMVR.Save();
     }
 
-    GameObject currentMesh = null;
-    int currentMeshIndex = 0;
-    void Update()
-    {
-        if (LOAD_COMMANDS_PAK) return;
-        if (Input.GetKeyDown(KeyCode.P))
-        {
-            if (currentMesh != null) Destroy(currentMesh);
-            SpawnModel(currentMeshIndex, null);
-            //LoadTexture(currentMeshIndex);
-            currentMeshIndex++;
-        }
-    }
-
-    private void SpawnModel(int binIndex, GameObject parent)
+    private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
         if (binIndex >= Result.ModelsBIN.Header.ModelCount)
         {
@@ -166,9 +156,9 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.transform.localScale = LoadedModels[binIndex].LocalScale;
         newModelSpawn.name = LoadedModels[binIndex].Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = LoadedModels[binIndex].MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedModels[binIndex].MainMaterial;
+        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedMaterials[(mtlIndex == -1) ? LoadedModels[binIndex].DefaultMaterial : mtlIndex];
 
-        if (!LOAD_COMMANDS_PAK) currentMesh = newModelSpawn;
+        //todo apply mvr colour scale here
     }
 
     private AlienTexture LoadTexture(int EntryIndex, int paktype = 0, bool loadV1 = true)
@@ -486,7 +476,7 @@ public class AlienLevelLoader : MonoBehaviour
             ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
             ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
             ThisModelPart.MainMesh = thisMesh;
-            ThisModelPart.MainMaterial = MakeMaterial(Model.MaterialLibraryIndex);
+            ThisModelPart.DefaultMaterial = Model.MaterialLibraryIndex;
             LoadedModels[BINIndex] = ThisModelPart;
         }
     }
@@ -572,51 +562,9 @@ public class AlienLevelLoader : MonoBehaviour
         }
 
         return toReturn;
-
-        /*
-        Material->BaseColor = GetV4(DiffuseIndex);
-        ToReturn.OpacityUVMultiplier = GetF32(OpacityUVMultiplierIndex);
-        ToReturn.SpecularFactor = GetF32(SpecularFactorIndex);
-        ToReturn.DiffuseUVMultiplier = GetF32(DiffuseUVMultiplierIndex);
-        ToReturn.DiffuseUVAdder = GetF32(DiffuseUVAdderIndex) + (Shader->Header2->ShaderCategory == AlienShaderCategory_Eye ? -1 : 0); // TODO: Remove this hack. This info is contained in 'Shader->TextureEntries[CorrectIndex].UVAdder'.
-        ToReturn.DiffuseMapSamplerIndex = DiffuseSamplerIndex;
-        ToReturn.SecondaryDiffuseUVMultiplier = GetF32(SecondaryDiffuseUVMultiplierIndex);
-        ToReturn.NormalUVMultiplier = GetF32(NormalUVMultiplierIndex);
-        ToReturn.NormalUVMultiplierOfMultiplier = GetF32(NormalUVMultiplierOfMultiplierIndex);
-        ToReturn.SecondaryNormalUVMultiplier = GetF32(SecondaryNormalUVMultiplierIndex);
-        ToReturn.SpecularUVMultiplier = GetF32(SpecularUVMultiplierIndex);
-        ToReturn.DirtMapUVMultiplier = GetF32(DirtMapUVMultiplierIndex);
-        ToReturn.OpacityNoiseUVMultiplier = GetF32(OpacityNoiseUVMultiplierIndex);
-        ToReturn.OcclusionUVMultiplier = GetF32(OcclusionUVMultiplierIndex);
-        ToReturn.BaseColor = GetV4(DiffuseIndex);
-        ToReturn.OpacityMapIndex = GetTextureIndex2D(PBRMaterial->Opacity);
-        ToReturn.DiffuseMapIndex = GetTextureIndex2D(PBRMaterial->DiffuseMap);
-        ToReturn.SecondaryDiffuseMapIndex = GetTextureIndex2D(PBRMaterial->SecondaryDiffuseMap);
-        ToReturn.NormalMapIndex = GetTextureIndex2D(PBRMaterial->NormalMap);
-        ToReturn.SecondaryNormalMapIndex = GetTextureIndex2D(PBRMaterial->SecondaryNormalMap);
-        ToReturn.SpecularMapIndex = GetTextureIndex2D(PBRMaterial->SpecularMap);
-        ToReturn.SecondarySpecularMapIndex = GetTextureIndex2D(PBRMaterial->SecondarySpecularMap);
-        ToReturn.OcclusionMapIndex = GetTextureIndex2D(PBRMaterial->Occlusion);
-        ToReturn.DirtMapIndex = GetTextureIndex2D(PBRMaterial->DirtMap);
-        ToReturn.OpacityNoiseMapIndex = GetTextureIndex2D(PBRMaterial->OpacityNoiseMap);
-        ToReturn.EnvironmentMapIndex = GetTextureIndexCube(PBRMaterial->EnvironmentMap);
-        */
-            
-        /*
-        for (int I = 0; I < Result.ModelsMTL.TextureReferenceCounts[MaterialIndex]; ++I)
-        {
-            alien_mtl_texture_reference Reference = InMaterial.TextureReferences[I];
-            alien_textures Textures = GetTexturesTable(Reference.TextureTableIndex);
-            alien_texture_bin_texture Candidate = Textures.BIN.Textures[Reference.TextureIndex];
-            if (Candidate.Format == alien_texture_format.Alien_FORMAT_SIGNED_DISTANCE_FIELD)
-            {
-                //Material->Flags |= Material_IsSignedDistanceField;
-            }
-        }
-        */
     }
 
-    public Material MakeMaterial(int MTLIndex)
+    public void LoadMaterial(int MTLIndex)
     {
         alien_mtl_material InMaterial = Result.ModelsMTL.Materials[MTLIndex];
         int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
@@ -845,7 +793,8 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.color = new Color(0,0,0,0);
                 toReturn.SetFloat("_Mode", 1.0f);
                 toReturn.EnableKeyword("_ALPHATEST_ON");
-                return toReturn;
+                LoadedMaterials[MTLIndex] = toReturn;
+                return;
         }
 
         List<Texture> availableTextures = new List<Texture>();
@@ -946,7 +895,7 @@ public class AlienLevelLoader : MonoBehaviour
         }
         cstReader.Close();
 
-        return toReturn;
+        LoadedMaterials[MTLIndex] = toReturn;
     }
     private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
     {
@@ -1013,7 +962,7 @@ public class GameObjectHolder
     public Vector3 LocalScale;
     public string Name;
     public Mesh MainMesh; //TODO: should this be contained in a globally referenced array?
-    public Material MainMaterial; //TODO: should this be global?
+    public int DefaultMaterial; 
 }
 
 public class alien_level
