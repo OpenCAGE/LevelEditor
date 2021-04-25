@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
@@ -20,8 +20,35 @@ public class AlienLevelLoader : MonoBehaviour
     [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
     string levelPath;
 
+    [SerializeField] UnityEngine.UI.Text mvrindex1;
+    public void LoadMvrIndex()
+    {
+        List<CATHODE.Models.alien_mvr_entry> debugentries = new List<CATHODE.Models.alien_mvr_entry>();
+        foreach (string num in mvrindex1.text.Split(','))
+        {
+            debugentries.Add(Result.ModelsMVR.GetEntry(Convert.ToInt32(num)));
+        }
+        string breakhere = "";
+    }
+
     void Start()
     {
+        /*
+        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "MODELS.MVR", SearchOption.AllDirectories))
+        {
+            File.Copy(file, file + ".old");
+            CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(file);
+            for (int i = 0; i < mvr.EntryCount; i++)
+            {
+                CATHODE.Models.alien_mvr_entry thisEntry = mvr.GetEntry(i);
+                thisEntry.Transform = gameObject.transform.localToWorldMatrix;
+                mvr.SetEntry(i, thisEntry);
+            }
+            mvr.Save();
+        }
+        return;
+        */
+
         if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
 
 #if UNITY_EDITOR
@@ -129,7 +156,7 @@ public class AlienLevelLoader : MonoBehaviour
         }
         if (LoadedModels[binIndex] == null)
         {
-            Debug.Log("Attempted to load non-parsed model. Skipping!");
+            Debug.Log("Attempted to load non-parsed model (" + binIndex + "). Skipping!");
             return;
         }
         GameObject newModelSpawn = new GameObject();
@@ -812,10 +839,12 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 break;
 
-            //Unsupported shader slot types
+            //Unsupported shader slot types - draw transparent for now
             default:
                 toReturn.name = "UNRESOLVED: " + ShaderCategory.ToString();
-                toReturn.color = Color.cyan;
+                toReturn.color = new Color(0,0,0,0);
+                toReturn.SetFloat("_Mode", 1.0f);
+                toReturn.EnableKeyword("_ALPHATEST_ON");
                 return toReturn;
         }
 
@@ -864,8 +893,8 @@ public class AlienLevelLoader : MonoBehaviour
                 case alien_slot_ids.SPECULAR_MAP:
                     toReturn.EnableKeyword("_METALLICGLOSSMAP");
                     toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
-                    toReturn.SetFloat("_Glossiness", 0.1f); //todo
-                    toReturn.SetFloat("_GlossMapScale", 0.1f); //todo
+                    toReturn.SetFloat("_Glossiness", 0.0f);
+                    toReturn.SetFloat("_GlossMapScale", 0.0f);
                     break;
                 case alien_slot_ids.NORMAL_MAP:
                     toReturn.EnableKeyword("_NORMALMAP");
@@ -876,33 +905,57 @@ public class AlienLevelLoader : MonoBehaviour
         }
 
         //Apply properties
-        /*
         MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
         BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsCST));
-        int baseOffset = Result.ModelsMTL.Header.CSTOffsets[2] + InMaterial.CSTOffsets[2];
-        if (cstIndex.DiffuseIndex >= 0 && cstIndex.DiffuseIndex < Shader.Header.CSTCounts[2])
+        int baseOffset = Result.ModelsMTL.Header.CSTOffsets[2] + (InMaterial.CSTOffsets[2] * 4);
+        if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
         {
-            toReturn.SetColor("_Color", LoadFromCST<Vector4>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.DiffuseIndex]));
+            Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
+            toReturn.SetColor("_Color", colour);
         }
-        if (cstIndex.DiffuseUVMultiplierIndex >= 0 && cstIndex.DiffuseUVMultiplierIndex < Shader.Header.CSTCounts[2])
+        if (CSTIndexValid(cstIndex.DiffuseUVMultiplierIndex, ref Shader))
         {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex]);
+            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex] * 4));
             toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
         }
-        if (cstIndex.SpecularFactorIndex >= 0 && cstIndex.SpecularFactorIndex < Shader.Header.CSTCounts[2])
+        if (CSTIndexValid(cstIndex.DiffuseUVAdderIndex, ref Shader))
         {
-            float spec = LoadFromCST<float>(ref cstReader, baseOffset + Shader.CSTLinks[2][cstIndex.SpecularFactorIndex]);
+            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVAdderIndex] * 4));
+            toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
+        }
+        if (CSTIndexValid(cstIndex.NormalUVMultiplierIndex, ref Shader))
+        {
+            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.NormalUVMultiplierIndex] * 4));
+            toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
+        }
+        if (CSTIndexValid(cstIndex.OcclusionUVMultiplierIndex, ref Shader))
+        {
+            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.OcclusionUVMultiplierIndex] * 4));
+            toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
+        }
+        if (CSTIndexValid(cstIndex.SpecularUVMultiplierIndex, ref Shader))
+        {
+            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularUVMultiplierIndex] * 4));
+            toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
+        }
+        if (CSTIndexValid(cstIndex.SpecularFactorIndex, ref Shader))
+        {
+            float spec = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularFactorIndex] * 4));
             toReturn.SetFloat("_Glossiness", spec);
             toReturn.SetFloat("_GlossMapScale", spec);
         }
         cstReader.Close();
-        */
+
         return toReturn;
     }
     private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
     {
         cstReader.BaseStream.Position = offset;
         return Utilities.Consume<T>(ref cstReader);
+    }
+    private bool CSTIndexValid(int i, ref alien_shader_pak_shader Shader)
+    {
+        return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
     }
 
     public alien_textures GetTexturesTable(int TableIndex)

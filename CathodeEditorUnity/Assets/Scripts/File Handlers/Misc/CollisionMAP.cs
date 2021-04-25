@@ -18,6 +18,18 @@ namespace CATHODE.Misc
             Result.Header = Utilities.Consume<alien_collision_map_header>(ref Stream);
             Result.Entries = Utilities.ConsumeArray<alien_collision_map_entry>(ref Stream, Result.Header.EntryCount);
 
+            for (int i = 0; i < Result.Entries.Count; i++)
+            {
+                //for (int x = 0; x < 12;x++)
+                // {
+                alien_collision_map_entry entry = Result.Entries[i];
+                    if (entry.ID == 1740866497)
+                    {
+                        string breakhere = "";
+                    }
+               // }
+            }
+
             return Result;
         }
     }
@@ -33,8 +45,11 @@ public struct alien_collision_map_header
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct alien_collision_map_entry
 {
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
-    public int[] Unknowns; //12
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+    public int[] Unknowns1; //12
+    public int ID;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 7)]
+    public int[] Unknowns2; //12
 };
 
 public struct alien_collision_map
