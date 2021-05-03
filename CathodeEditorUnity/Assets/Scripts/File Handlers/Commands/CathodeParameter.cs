@@ -85,7 +85,7 @@ namespace CATHODE.Commands
     }
     public class CathodeEnum : CathodeParameter
     {
-        public byte[] enumID = { };
+        public UInt32 enumID = 0;
         public int enumIndex = 0;
     }
     public class CathodeSpline : CathodeParameter

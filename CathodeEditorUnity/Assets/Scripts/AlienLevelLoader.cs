@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
@@ -31,12 +31,34 @@ public class AlienLevelLoader : MonoBehaviour
         string breakhere = "";
     }
 
+    [SerializeField] UnityEngine.UI.Text mvrindex2;
+    public void ResetMvrNodeId()
+    {
+        CATHODE.Models.alien_mvr_entry mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
+        mvr.NodeID = 0;
+        Result.ModelsMVR.SetEntry(Convert.ToInt32(mvrindex2.text), mvr);
+        Result.ModelsMVR.Save();
+    }
+
     void Start()
     {
         /*
+        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "ENVIRONMENTMAP.BIN", SearchOption.AllDirectories))
+        {
+            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
+            CATHODE.Misc.EnvironmentMapBIN bin = new CATHODE.Misc.EnvironmentMapBIN(file);
+            for (int i = 0; i < bin.EntryCount; i++)
+            {
+                CATHODE.Misc.alien_environment_map_bin_entry thisEntry = bin.GetEntry(i);
+                thisEntry.EnvironmentMapIndex = -1;
+                bin.SetEntry(i, thisEntry);
+            }
+            bin.Save();
+        }
         foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "MODELS.MVR", SearchOption.AllDirectories))
         {
-            File.Copy(file, file + ".old");
+            //if (!file.Contains("SOLACE")) continue;
+            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
             CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(file);
             for (int i = 0; i < mvr.EntryCount; i++)
             {
@@ -73,7 +95,7 @@ public class AlienLevelLoader : MonoBehaviour
         Result.ShadersIDXRemap = CATHODE.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
 
         Result.CollisionMap = CATHODE.Misc.CollisionMAP.Load(levelPath + "/WORLD/COLLISION.MAP");
-        Result.EnvironmentMap = CATHODE.Misc.EnvironmentMapBIN.Load(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
+        Result.EnvironmentMap = new CATHODE.Misc.EnvironmentMapBIN(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
         Result.PhysicsMap = CATHODE.Misc.PhysicsMAP.Load(levelPath + "/WORLD/PHYSICS.MAP");
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
@@ -119,9 +141,9 @@ public class AlienLevelLoader : MonoBehaviour
             }
         }
 
-        return;
-        CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
-        //cmdLoader.
+        //Pull content from COMMANDS
+        //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
+        //StartCoroutine(cmdLoader.LoadCommandsPAK(levelPath));
     }
     
     //first saving attempt
@@ -150,7 +172,7 @@ public class AlienLevelLoader : MonoBehaviour
         }
         if (LoadedModels[binIndex] == null)
         {
-            Debug.Log("Attempted to load non-parsed model (" + binIndex + "). Skipping!");
+            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsBIN.ModelFilePaths[binIndex] + "). Skipping!");
             return;
         }
         GameObject newModelSpawn = new GameObject();
@@ -1007,7 +1029,7 @@ public class alien_level
     public int MeshCount;
 
     public alien_physics_map PhysicsMap;
-    public alien_environment_map_bin EnvironmentMap;
+    public CATHODE.Misc.EnvironmentMapBIN EnvironmentMap;
     public alien_collision_map CollisionMap;
 
     //alien_animation_dat EnvironmentAnimation;

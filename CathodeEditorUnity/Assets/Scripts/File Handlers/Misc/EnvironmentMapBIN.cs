@@ -8,39 +8,61 @@ using System.Threading.Tasks;
 
 namespace CATHODE.Misc
 {
-    class EnvironmentMapBIN
+    /* Handles CATHODE ENVIRONMENTMAP.BIN file */
+    public class EnvironmentMapBIN
     {
-        public static alien_environment_map_bin Load(string FullFilePath)
+        private string filepath;
+        private alien_environment_map_bin_header header;
+        private List<alien_environment_map_bin_entry> entries;
+
+        /* Load file */
+        public EnvironmentMapBIN(string path)
         {
-            alien_environment_map_bin Result = new alien_environment_map_bin();
-            BinaryReader Stream = new BinaryReader(File.OpenRead(FullFilePath));
+            filepath = path;
 
-            Result.Header = Utilities.Consume<alien_environment_map_bin_header>(ref Stream);
-            Result.Entries = Utilities.ConsumeArray<alien_environment_map_bin_entry>(ref Stream, Result.Header.EntryCount);
+            BinaryReader Stream = new BinaryReader(File.OpenRead(filepath));
+            header = Utilities.Consume<alien_environment_map_bin_header>(ref Stream);
+            entries = Utilities.ConsumeArray<alien_environment_map_bin_entry>(ref Stream, (int)header.EntryCount);
+            Stream.Close();
+        }
 
-            return Result;
+        /* Save the file */
+        public void Save()
+        {
+            FileStream stream = new FileStream(filepath, FileMode.Create);
+            Utilities.Write<alien_environment_map_bin_header>(ref stream, header);
+            for (int i = 0; i < entries.Count; i++) Utilities.Write<alien_environment_map_bin_entry>(ref stream, entries[i]);
+            stream.Close();
+        }
+
+        /* Data accessors */
+        public int EntryCount { get { return entries.Count; } }
+        public List<alien_environment_map_bin_entry> Entries { get { return entries; } }
+        public alien_environment_map_bin_entry GetEntry(int i)
+        {
+            return entries[i];
+        }
+
+        /* Data setters */
+        public void SetEntry(int i, alien_environment_map_bin_entry content)
+        {
+            entries[i] = content;
         }
     }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct alien_environment_map_bin_entry
+    {
+        public int EnvironmentMapIndex; //Environment map index within ?
+        public uint MoverIndex; //Mover index within MVR file
+    };
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct alien_environment_map_bin_header
+    {
+        public fourcc FourCC;
+        public uint Unknown0_;
+        public int EntryCount;
+        public uint Unknown1_;
+    };
 }
-
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct alien_environment_map_bin_entry
-{
-    public int UnknownValue; // TODO: Very small or '-1'. Enum?
-    public uint UnknownIndex;
-};
-
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct alien_environment_map_bin_header
-{
-    public fourcc FourCC;
-    public uint Unknown0_;
-    public int EntryCount;
-    public uint Unknown1_;
-};
-
-public struct alien_environment_map_bin
-{
-    public alien_environment_map_bin_header Header;
-    public List<alien_environment_map_bin_entry> Entries;
-};

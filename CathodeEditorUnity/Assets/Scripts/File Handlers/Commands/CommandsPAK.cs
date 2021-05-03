@@ -220,7 +220,7 @@ namespace CATHODE.Commands
                         break;
                     case CathodeDataType.ENUM:
                         this_parameter = new CathodeEnum();
-                        ((CathodeEnum)this_parameter).enumID = reader.ReadBytes(4);
+                        ((CathodeEnum)this_parameter).enumID = reader.ReadUInt32();
                         ((CathodeEnum)this_parameter).enumIndex = reader.ReadInt32();
                         break;
                         /*
