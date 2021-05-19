@@ -69,7 +69,7 @@ namespace CATHODE.Models
         public float[] Unknowns1_;
         public float UnknownValue2_;
         public float UnknownValue3_;
-        public float UnknownValue4_;
+        public float UnknownValue4_; //id for something? not found in any other level files
         public int Unknown2_;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         public float[] Unknown2f_;
@@ -82,13 +82,13 @@ namespace CATHODE.Models
         public uint REDSIndex; // Index 45
         public uint ModelCount;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
-        public int[] Unknowns5_;
+        public int[] Unknowns5_; //index 0 collision map entry?, final index is always 128?
         public uint NodeID; // Index 52
-        public uint UnknownValue0;
+        public uint UnknownValue0; //another id for something?
         public uint UnknownIndex;
         public uint UnknownValue1;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-        public float[] Unknowns4_;
+        public float[] Unknowns4_; //zeroing index 2 stop model rendering
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         public int[] Unknowns6_;
     };
