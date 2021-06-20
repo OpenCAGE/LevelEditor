@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+#if UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace CATHODE.Commands
 {
@@ -47,7 +50,7 @@ namespace CATHODE.Commands
         public int editOffset; //The offset in the PAK that this is for temp rewrite logic
 
         public UInt32 resourceRefID;                   //The ID of this entry?
-        public UnityEngine.Vector3 positionOffset;     //The 3D position to offset the resource by
+        public Vector3 positionOffset;     //The 3D position to offset the resource by
         public UInt32 resourceID;                      //This is the ID also contained in the RESOURCE_ID parameter list
         public CathodeResourceReferenceType entryType; //This is the type of resource entry
 

@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+#if UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace CATHODE.Models
 {
@@ -15,18 +16,18 @@ namespace CATHODE.Models
         private alien_mvr_header header;
         private List<alien_mvr_entry> movers;
 
-        /* Load an MVR file */
-        public ModelsMVR(string pathToMVR)
+        /* Load the file */
+        public ModelsMVR(string pathToFile)
         {
-            filepath = pathToMVR;
+            filepath = pathToFile;
 
-            BinaryReader Stream = new BinaryReader(File.OpenRead(filepath));
-            header = Utilities.Consume<alien_mvr_header>(ref Stream);
-            movers = Utilities.ConsumeArray<alien_mvr_entry>(ref Stream, (int)header.EntryCount);
-            Stream.Close();
+            BinaryReader stream = new BinaryReader(File.OpenRead(filepath));
+            header = Utilities.Consume<alien_mvr_header>(ref stream);
+            movers = Utilities.ConsumeArray<alien_mvr_entry>(ref stream, (int)header.EntryCount);
+            stream.Close();
         }
 
-        /* Save the MVR file */
+        /* Save the file */
         public void Save()
         {
             FileStream stream = new FileStream(filepath, FileMode.Create);
@@ -62,7 +63,7 @@ namespace CATHODE.Models
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct alien_mvr_entry
     {
-        public UnityEngine.Matrix4x4 Transform;
+        public Matrix4x4 Transform;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
         public float[] Unknowns0_; // NOTE: The 0th element is -Pi on entry 61 of 'hab_airport'.
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
@@ -76,7 +77,7 @@ namespace CATHODE.Models
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
         public uint[] Unknowns2_;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-        public UnityEngine.Vector3[] UnknownMinMax_; // NOTE: Sometimes I see 'nan's here too.
+        public Vector3[] UnknownMinMax_; // NOTE: Sometimes I see 'nan's here too.
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 9)]
         public int[] Unknowns3_; // NOTE: The 9th and 11th elements seem to be incrementing indices.
         public uint REDSIndex; // Index 45

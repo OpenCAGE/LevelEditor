@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+#if UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace CATHODE.Models
 {
@@ -64,45 +66,6 @@ namespace CATHODE.Models
     }
 }
 
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct alien_model_bin_header
-{
-    public fourcc FourCC;
-    public int ModelCount;
-    public Int16 Unknown0_;
-    public Int16 Version;
-    public int VertexInputCount;
-};
-
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct alien_model_bin_model_info
-{
-    public int FileNameOffset;
-    public int UnknownZero_; // NOTE: Always 0 on starting area.
-    public int ModelPartNameOffset;
-    public float UnknownValue0_; // NOTE: Always 0 on starting area.
-    public UnityEngine.Vector3 AABBMin;
-    public float LODMinDistance_;
-    public UnityEngine.Vector3 AABBMax;
-    public float LODMaxDistance_;
-    public int NextInLODGroup_;
-    public int FirstModelInGroupForNextLOD_;
-    public int MaterialLibraryIndex;
-    public uint Unknown2_; // NOTE: Flags?
-    public int UnknownIndex; // NOTE: -1 means no index. Seems to be related to Next/Parent.
-    public uint BlockSize;
-    public int CollisionIndex_; // NODE: If this is not -1, model piece name starts with "COL_" and are always character models.
-    public int BoneArrayOffset_; // TODO: This indexes on the leftover data and points to an array of linearly growing indices.
-                                 //  And the array count is BoneCount.
-    public UInt16 VertexFormatIndex;
-    public UInt16 VertexFormatIndexLowDetail;
-    public UInt16 VertexFormatIndexDefault_; // TODO: This is always equals to the VertexFormatIndex
-    public UInt16 ScaleFactor;
-    public Int16 HeadRelated_; // NOTE: Seems to be valid on some 'HEAD' models, otherwise -1. Maybe morphing related???
-    public UInt16 VertexCount;
-    public UInt16 IndexCount;
-    public UInt16 BoneCount;
-};
 
 public enum alien_vertex_input_type
 {
@@ -131,6 +94,46 @@ public enum alien_vertex_input_slot
 };
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct alien_model_bin_header
+{
+    public fourcc FourCC;
+    public int ModelCount;
+    public Int16 Unknown0_;
+    public Int16 Version;
+    public int VertexInputCount;
+};
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct alien_model_bin_model_info
+{
+    public int FileNameOffset;
+    public int UnknownZero_; // NOTE: Always 0 on starting area.
+    public int ModelPartNameOffset;
+    public float UnknownValue0_; // NOTE: Always 0 on starting area.
+    public Vector3 AABBMin;
+    public float LODMinDistance_;
+    public Vector3 AABBMax;
+    public float LODMaxDistance_;
+    public int NextInLODGroup_;
+    public int FirstModelInGroupForNextLOD_;
+    public int MaterialLibraryIndex;
+    public uint Unknown2_; // NOTE: Flags?
+    public int UnknownIndex; // NOTE: -1 means no index. Seems to be related to Next/Parent.
+    public uint BlockSize;
+    public int CollisionIndex_; // NODE: If this is not -1, model piece name starts with "COL_" and are always character models.
+    public int BoneArrayOffset_; // TODO: This indexes on the leftover data and points to an array of linearly growing indices.
+                                 //  And the array count is BoneCount.
+    public UInt16 VertexFormatIndex;
+    public UInt16 VertexFormatIndexLowDetail;
+    public UInt16 VertexFormatIndexDefault_; // TODO: This is always equals to the VertexFormatIndex
+    public UInt16 ScaleFactor;
+    public Int16 HeadRelated_; // NOTE: Seems to be valid on some 'HEAD' models, otherwise -1. Maybe morphing related???
+    public UInt16 VertexCount;
+    public UInt16 IndexCount;
+    public UInt16 BoneCount;
+};
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct alien_vertex_buffer_format_element
 {
     public int ArrayIndex;
@@ -140,6 +143,13 @@ public struct alien_vertex_buffer_format_element
     public int VariantIndex; // NOTE: Variant index such as UVs: (UV0, UV1, UV2...)
     public int Unknown_; // NOTE: Seems to be always 2?
 };
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct fourcc
+{
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+    public char[] V; //4
+}
 
 public struct alien_vertex_buffer_format
 {
@@ -156,9 +166,3 @@ public struct alien_model_bin
     public List<string> ModelFilePaths;
     public List<string> ModelLODPartNames;
 };
-
-public struct fourcc
-{
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-    public char[] V; //4
-}
