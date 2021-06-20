@@ -20,7 +20,7 @@ public class CacheLevel : MonoBehaviour
         LoadTextureAssets();
         LoadMeshAssets();
         LoadMaterialAssets();
-        LoadFlowgraphAssets(levelData.CommandsPAK);
+        LoadFlowgraphAssets();
 
         for (int i = 0; i < levelData.CommandsPAK.EntryPoints.Count; i++)
         {
@@ -347,14 +347,14 @@ public class CacheLevel : MonoBehaviour
 
     }
 
-    private void LoadFlowgraphAssets(CommandsPAK commandsPAK)
+    private void LoadFlowgraphAssets()
     {
         //First, make dummy prefabs of all flowgraphs
         GameObject rootGO = new GameObject();
         AssetDatabase.StartAssetEditing();
-        for (int i = 0; i < commandsPAK.AllFlowgraphs.Count; i++)
+        for (int i = 0; i < levelData.CommandsPAK.AllFlowgraphs.Count; i++)
         {
-            string fullFilePath = GetFlowgraphAssetPath(commandsPAK.AllFlowgraphs[i]);
+            string fullFilePath = GetFlowgraphAssetPath(levelData.CommandsPAK.AllFlowgraphs[i]);
             string fileDirectory = GetDirectory(fullFilePath);
             if (!Directory.Exists(fileDirectory)) Directory.CreateDirectory(fileDirectory);
             if (!File.Exists(fullFilePath)) PrefabUtility.SaveAsPrefabAsset(rootGO, fullFilePath);
@@ -363,12 +363,13 @@ public class CacheLevel : MonoBehaviour
 
         //Then, populate the prefabs for all flowgraphs
         AssetDatabase.StartAssetEditing();
-        for (int i = 0; i < commandsPAK.AllFlowgraphs.Count; i++)
+        for (int i = 0; i < levelData.CommandsPAK.AllFlowgraphs.Count; i++)
         {
-            GameObject flowgraphGO = new GameObject(commandsPAK.AllFlowgraphs[i].name);
-            for (int x = 0; x < commandsPAK.AllFlowgraphs[i].nodes.Count; x++)
+            GameObject flowgraphGO = new GameObject(levelData.CommandsPAK.AllFlowgraphs[i].name);
+            string nodeType = "";
+            for (int x = 0; x < levelData.CommandsPAK.AllFlowgraphs[i].nodes.Count; x++)
             {
-                CathodeFlowgraph flowgraphRef = commandsPAK.GetFlowgraph(commandsPAK.AllFlowgraphs[i].nodes[x].nodeType);
+                CathodeFlowgraph flowgraphRef = levelData.CommandsPAK.GetFlowgraph(levelData.CommandsPAK.AllFlowgraphs[i].nodes[x].nodeType);
                 GameObject nodeGO = null;
                 if (flowgraphRef != null)
                 {
@@ -380,27 +381,81 @@ public class CacheLevel : MonoBehaviour
                 else
                 {
                     //This is a node
-                    nodeGO = new GameObject(CathodeLib.NodeDB.GetFriendlyName(commandsPAK.AllFlowgraphs[i].nodes[x].nodeID));
+                    nodeGO = new GameObject(CathodeLib.NodeDB.GetFriendlyName(levelData.CommandsPAK.AllFlowgraphs[i].nodes[x].nodeID));
+                    nodeType = CathodeLib.NodeDB.GetNodeTypeName(levelData.CommandsPAK.AllFlowgraphs[i].nodes[x].nodeType, ref levelData.CommandsPAK);
                 }
                 nodeGO.transform.parent = flowgraphGO.transform;
-                foreach (CathodeParameterReference paramRef in commandsPAK.AllFlowgraphs[i].nodes[x].nodeParameterReferences)
+                //TODO: this can all be optimised massively
+                List<uint> resourceIDs = new List<uint>();
+                foreach (CathodeParameterReference paramRef in levelData.CommandsPAK.AllFlowgraphs[i].nodes[x].nodeParameterReferences)
                 {
-                    CathodeParameter param = commandsPAK.GetParameter(paramRef.offset);
+                    CathodeParameter param = levelData.CommandsPAK.GetParameter(paramRef.offset);
                     if (param == null) continue;
-                    if (param.dataType != CathodeDataType.POSITION) continue;
-                    CathodeTransform transform = (CathodeTransform)param;
-                    nodeGO.transform.position = transform.position;
-                    nodeGO.transform.rotation = Quaternion.Euler(transform.rotation);
-                    break;
+                    switch (param.dataType)
+                    {
+                        case CathodeDataType.POSITION:
+                            CathodeTransform transform = (CathodeTransform)param;
+                            nodeGO.transform.localPosition = transform.position;
+                            nodeGO.transform.localRotation = Quaternion.Euler(transform.rotation);
+                            break;
+                        case CathodeDataType.SHORT_GUID:
+                            resourceIDs.Add(((CathodeResource)param).resourceID);
+                            break;
+                    }
+                }
+                switch (nodeType)
+                {
+                    case "PlayerTriggerBox":
+                        //nodeGO.AddComponent<BoxCollider>().bounds = new Bounds(new Vector3(0, 0, 0), new Vector3(0, 0, 0));
+                        break;
+                    case "PositionMarker":
+                        //debug render marker
+                        break;
+                    case "Sound":
+                        //nodeGO.AddComponent<AudioSource>().clip = null;
+                        break;
+                    case "PlayEnvironmentAnimation":
+                        break;
+                    case "ParticleEmitterReference":
+                        break;
+                    case "ModelReference":
+                        for (int y = 0; y < resourceIDs.Count; y++)
+                        {
+                            List<CathodeResourceReference> resourceReference = levelData.CommandsPAK.AllFlowgraphs[i].GetResourceReferencesByID(resourceIDs[y]);
+                            for (int z = 0; z < resourceReference.Count; z++)
+                            {
+                                if (resourceReference[z].entryType != CathodeResourceReferenceType.RENDERABLE_INSTANCE) continue; //Ignoring collision maps, etc, for now
+                                //TODO: This is kinda hacked for now while we're not saving with submeshes
+                                for (int p = 0; p < resourceReference[z].entryCountREDS; p++)
+                                {
+                                    int thisIndex = levelData.RenderableREDS.Entries[resourceReference[z].entryIndexREDS].ModelIndex + p;
+                                    string meshResourcePath = GetMeshAssetPath(thisIndex, true) + "_" + p;
+                                    GameObject newSubmesh = new GameObject(meshResourcePath);
+                                    newSubmesh.transform.parent = nodeGO.transform;
+                                    newSubmesh.transform.localScale = new Vector3(1, 1, 1) * levelData.ModelsBIN.Models[thisIndex].ScaleFactor;
+                                    newSubmesh.transform.localPosition = Vector3.zero;
+                                    newSubmesh.transform.localRotation = Quaternion.identity;
+                                    newSubmesh.AddComponent<MeshFilter>().sharedMesh = Resources.Load<Mesh>(GetMeshAssetPath(thisIndex, true) + "_" + p);
+                                    newSubmesh.AddComponent<MeshRenderer>().sharedMaterial = Resources.Load<Material>("DUMMY"); //TODO: replace
+                                }
+                            }
+                        }
+                        break;
                 }
             }
-            PrefabUtility.SaveAsPrefabAsset(flowgraphGO, GetFlowgraphAssetPath(commandsPAK.AllFlowgraphs[i]));
+            PrefabUtility.SaveAsPrefabAsset(flowgraphGO, GetFlowgraphAssetPath(levelData.CommandsPAK.AllFlowgraphs[i]));
             Destroy(flowgraphGO);
         }
         AssetDatabase.StopAssetEditing();
         Destroy(rootGO);
     }
 
+    private string GetMeshAssetPath(int binIndex, bool resourcePath = false)
+    {
+        string basePath = SharedVals.instance.LevelName + "/Meshes/" + levelData.ModelsBIN.ModelFilePaths[binIndex] + "_" + levelData.ModelsBIN.ModelLODPartNames[binIndex];
+        if (resourcePath) return basePath;
+        else return "Assets/Resources/" + basePath + ".asset";
+    }
     private string GetFlowgraphAssetPath(CathodeFlowgraph flowgraph, bool resourcePath = false)
     {
         string basePath = SharedVals.instance.LevelName + "/Flowgraphs/" + flowgraph.name.Replace("\\", "/").Replace(":", "_");
