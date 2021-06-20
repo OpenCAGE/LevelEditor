@@ -204,7 +204,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LOAD_COMMANDS_PAK: 1
-  LEVEL_NAME: solace
+  LEVEL_NAME: tech_hub
   mvrindex1: {fileID: 490410628}
   mvrindex2: {fileID: 1953447469}
 --- !u!1 &407092648

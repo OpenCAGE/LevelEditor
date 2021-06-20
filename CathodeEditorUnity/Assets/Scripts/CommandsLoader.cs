@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
@@ -36,6 +36,7 @@ public class CommandsLoader : MonoBehaviour
     private IEnumerator RecursiveLoad(CathodeFlowgraph flowgraph, GameObject parentTransform)
     {
         //Find and load all light nodes
+        /*
         List<CathodeNodeEntity> lightNodes = GetAllOfType(ref flowgraph, LightReferenceID);
         for (int i = 0; i < lightNodes.Count; i++)
         {
@@ -81,6 +82,19 @@ public class CommandsLoader : MonoBehaviour
                     if (NodeDB.GetFriendlyName(e.enumID) == "LIGHT_TYPE") thisLight.type = (LightType)e.enumIndex; //TODO: work out mapping of this enum to Unity enum
                 }
             }
+        }
+        */
+
+        //Populate heirarchy with node placeholders
+        foreach (CathodeNodeEntity node in flowgraph.nodes)
+        {
+            CathodeNodeEntity thisNode = node;
+            PosAndRot thisNodePosAndRot = GetTransform(ref thisNode);
+            GameObject thisGO = new GameObject();
+            thisGO.name = NodeDB.GetFriendlyName(thisNode.nodeID) + " - (" + NodeDB.GetNodeTypeName(thisNode.nodeType, ref commandsPAK) + ")";
+            thisGO.transform.parent = parentTransform.transform;
+            thisGO.transform.localPosition = thisNodePosAndRot.position;
+            thisGO.transform.localRotation = thisNodePosAndRot.rotation;
         }
 
         //Find references to other flowgraphs, and continue down the hierarchy to load them

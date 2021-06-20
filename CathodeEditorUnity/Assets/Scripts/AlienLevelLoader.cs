@@ -42,35 +42,6 @@ public class AlienLevelLoader : MonoBehaviour
 
     void Start()
     {
-        /*
-        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "ENVIRONMENTMAP.BIN", SearchOption.AllDirectories))
-        {
-            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
-            CATHODE.Misc.EnvironmentMapBIN bin = new CATHODE.Misc.EnvironmentMapBIN(file);
-            for (int i = 0; i < bin.EntryCount; i++)
-            {
-                CATHODE.Misc.alien_environment_map_bin_entry thisEntry = bin.GetEntry(i);
-                thisEntry.EnvironmentMapIndex = -1;
-                bin.SetEntry(i, thisEntry);
-            }
-            bin.Save();
-        }
-        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "MODELS.MVR", SearchOption.AllDirectories))
-        {
-            //if (!file.Contains("SOLACE")) continue;
-            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
-            CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(file);
-            for (int i = 0; i < mvr.EntryCount; i++)
-            {
-                CATHODE.Models.alien_mvr_entry thisEntry = mvr.GetEntry(i);
-                thisEntry.Transform = gameObject.transform.localToWorldMatrix;
-                mvr.SetEntry(i, thisEntry);
-            }
-            mvr.Save();
-        }
-        return;
-        */
-
         if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
 
 #if UNITY_EDITOR
