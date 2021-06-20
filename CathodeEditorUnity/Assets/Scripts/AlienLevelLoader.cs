@@ -43,19 +43,14 @@ public class AlienLevelLoader : MonoBehaviour
     void Start()
     {
         if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
-#if UNITY_EDITOR
-        string pathToEnv = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV";
-#else
-        string pathToEnv = "DATA/ENV";
-#endif
 
         //Load global assets
-        GlobalTextures = CATHODE.Textures.TexturePAK.Load(pathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", pathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        GlobalTextures = CATHODE.Textures.TexturePAK.Load(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
         //Load level assets
-        Result = CATHODE.AlienLevel.Load(LEVEL_NAME, pathToEnv);
+        Result = CATHODE.AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
         LoadedTexturesGlobal = new AlienTexture[GlobalTextures.BIN.Header.EntryCount];
