@@ -18,6 +18,7 @@ public class AlienLevelLoader : MonoBehaviour
 
     public alien_level CurrentLevel { get { return Result; } }
     public string CurrentLevelName { get { return LEVEL_NAME; } }
+    public GameObject CurrentLevelGameObject { get { return levelParent; } }
 
     private alien_level Result = null;
     private alien_textures GlobalTextures;
@@ -108,7 +109,7 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < levelParent.transform.childCount; i++)
         {
             GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
-            if (mvrEntry.name.Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
+            if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
             CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.GetEntry(i);
             thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;

@@ -114,6 +114,24 @@ public class NewLevelLoaderHud : MonoBehaviour
         levelLoader.CurrentLevel.ModelsMVR.SetEntry(index, JsonUtility.FromJson<alien_mvr_entry>(mvrContentEditor.text));
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }
+    public void SaveMVRTransformFromEdit(int index = -1)
+    {
+        if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
+        for (int i = 0; i < levelLoader.CurrentLevelGameObject.transform.childCount; i++)
+        {
+            if (index != i) continue;
+
+            GameObject mvrEntry = levelLoader.CurrentLevelGameObject.transform.GetChild(i).gameObject;
+            if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
+
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
+            thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
+            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
+
+            break;
+        }
+        levelLoader.CurrentLevel.ModelsMVR.Save();
+    }
 
     public void LoadLevel(string levelname = "")
     {
