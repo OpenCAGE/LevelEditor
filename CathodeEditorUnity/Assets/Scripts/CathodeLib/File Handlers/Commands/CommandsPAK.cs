@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+#if UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace CATHODE.Commands
 {
@@ -37,18 +40,33 @@ namespace CATHODE.Commands
                 {
                     case CathodeDataType.POSITION:
                         CathodeTransform cTransform = (CathodeTransform)parameter;
+#if UNITY_EDITOR || UNITY_STANDALONE
                         writer.Write(cTransform.position.x);
                         writer.Write(cTransform.position.y);
                         writer.Write(cTransform.position.z);
-                        writer.Write(cTransform.rotation.y); //NOTE: this is not an error on my part, this is how it's saved!
+                        writer.Write(cTransform.rotation.y);
                         writer.Write(cTransform.rotation.x);
                         writer.Write(cTransform.rotation.z);
+#else
+                        writer.Write(cTransform.position.X);
+                        writer.Write(cTransform.position.Y);
+                        writer.Write(cTransform.position.Z);
+                        writer.Write(cTransform.rotation.Y);
+                        writer.Write(cTransform.rotation.X);
+                        writer.Write(cTransform.rotation.Z);
+#endif
                         break;
                     case CathodeDataType.DIRECTION:
                         CathodeVector3 cVector = (CathodeVector3)parameter;
-                        writer.Write(cVector.value.y); //NOTE: this is not an error on my part, this is how it's saved (i think)!
+#if UNITY_EDITOR || UNITY_STANDALONE
+                        writer.Write(cVector.value.y);
                         writer.Write(cVector.value.x);
                         writer.Write(cVector.value.z);
+#else
+                        writer.Write(cVector.value.Y);
+                        writer.Write(cVector.value.X);
+                        writer.Write(cVector.value.Z);
+#endif
                         break;
                     case CathodeDataType.INTEGER:
                         CathodeInteger cInt = (CathodeInteger)parameter;
@@ -115,6 +133,10 @@ namespace CATHODE.Commands
             if (id == 0) return null;
             return flowgraphs.FirstOrDefault(o => o.nodeID == id);
         }
+        public CathodeFlowgraph GetFlowgraphByIndex(int index)
+        {
+            return (index >= flowgraphs.Count || index < 0) ? null : flowgraphs[index];
+        }
         public CathodeParameter GetParameter(int offset)
         {
             return parameters.FirstOrDefault(o => o.offset == offset);
@@ -124,13 +146,13 @@ namespace CATHODE.Commands
         public List<CathodeFlowgraph> AllFlowgraphs { get { return flowgraphs; } }
         public List<CathodeParameter> AllParameters { get { return parameters; } }
 
-        /* Get entry points */
+        /* Get entry points (TODO: don't calculate this in accessor as it's used a fair bit) */
         public List<CathodeFlowgraph> EntryPoints { get
             {
                 List<CathodeFlowgraph> entry_points_CF = new List<CathodeFlowgraph>();
                 foreach (UInt32 flow_id in entry_points) entry_points_CF.Add(GetFlowgraph(flow_id));
                 return entry_points_CF;
-            } 
+            }
         }
 
         /* Parse the three entry flowgraphs for this COMMANDS.PAK */
@@ -178,9 +200,9 @@ namespace CATHODE.Commands
                 {
                     case CathodeDataType.POSITION:
                         this_parameter = new CathodeTransform();
-                        ((CathodeTransform)this_parameter).position = new UnityEngine.Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+                        ((CathodeTransform)this_parameter).position = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                         float _x, _y, _z; _y = reader.ReadSingle(); _x = reader.ReadSingle(); _z = reader.ReadSingle(); //Y,X,Z!
-                        ((CathodeTransform)this_parameter).rotation = new UnityEngine.Vector3(_x, _y, _z);
+                        ((CathodeTransform)this_parameter).rotation = new Vector3(_x, _y, _z);
                         break;
                     case CathodeDataType.INTEGER:
                         this_parameter = new CathodeInteger();
@@ -216,7 +238,7 @@ namespace CATHODE.Commands
                     case CathodeDataType.DIRECTION:
                         this_parameter = new CathodeVector3();
                         float __x, __y, __z; __y = reader.ReadSingle(); __x = reader.ReadSingle(); __z = reader.ReadSingle(); //Y,X,Z!
-                        ((CathodeVector3)this_parameter).value = new UnityEngine.Vector3(__x, __y, __z);
+                        ((CathodeVector3)this_parameter).value = new Vector3(__x, __y, __z);
                         break;
                     case CathodeDataType.ENUM:
                         this_parameter = new CathodeEnum();
@@ -420,7 +442,7 @@ namespace CATHODE.Commands
                                 resource_ref.editOffset = (int)reader.BaseStream.Position;
                                 resource_ref.resourceRefID = reader.ReadUInt32(); //renderable element ID (also used in one of the param blocks for something)
                                 reader.BaseStream.Position += 4; //unk (always 0x00 x4?)
-                                resource_ref.positionOffset = new UnityEngine.Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); //position offset
+                                resource_ref.positionOffset = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); //position offset
                                 reader.BaseStream.Position += 4; //unk (always 0x00 x4?)
                                 resource_ref.resourceID = reader.ReadUInt32(); //resource id
                                 resource_ref.entryType = GetResourceEntryType(reader.ReadBytes(4)); //entry type

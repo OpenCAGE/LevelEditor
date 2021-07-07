@@ -6,106 +6,60 @@ using System.IO;
 using System;
 using System.Linq;
 using UnityEditor;
+using UnityEngine.UI;
 
 public class AlienLevelLoader : MonoBehaviour
 {
-    alien_level Result = null;
-
-    AlienTexture[] LoadedTexturesGlobal;
-    AlienTexture[] LoadedTexturesLevel;
-    GameObjectHolder[] LoadedModels;
-    Material[] LoadedMaterials;
-
     [SerializeField] private bool LOAD_COMMANDS_PAK = false;
     [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
-    string levelPath;
 
-    [SerializeField] UnityEngine.UI.Text mvrindex1;
-    public void LoadMvrIndex()
-    {
-        List<CATHODE.Models.alien_mvr_entry> debugentries = new List<CATHODE.Models.alien_mvr_entry>();
-        foreach (string num in mvrindex1.text.Split(','))
-        {
-            debugentries.Add(Result.ModelsMVR.GetEntry(Convert.ToInt32(num)));
-        }
-        string breakhere = "";
-    }
+    public delegate void LoadedEvent(alien_level data);
+    public LoadedEvent LevelLoadCompleted;
 
-    [SerializeField] UnityEngine.UI.Text mvrindex2;
-    public void ResetMvrNodeId()
-    {
-        CATHODE.Models.alien_mvr_entry mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
-        mvr.NodeID = 0;
-        Result.ModelsMVR.SetEntry(Convert.ToInt32(mvrindex2.text), mvr);
-        Result.ModelsMVR.Save();
-    }
+    public alien_level CurrentLevel { get { return Result; } }
+    public string CurrentLevelName { get { return LEVEL_NAME; } }
+
+    private alien_level Result = null;
+    private alien_textures GlobalTextures;
+
+    private GameObject levelParent = null;
+
+    private AlienTexture[] LoadedTexturesGlobal;
+    private AlienTexture[] LoadedTexturesLevel;
+    private GameObjectHolder[] LoadedModels;
+    private Material[] LoadedMaterials;
 
     void Start()
     {
-        /*
-        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "ENVIRONMENTMAP.BIN", SearchOption.AllDirectories))
-        {
-            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
-            CATHODE.Misc.EnvironmentMapBIN bin = new CATHODE.Misc.EnvironmentMapBIN(file);
-            for (int i = 0; i < bin.EntryCount; i++)
-            {
-                CATHODE.Misc.alien_environment_map_bin_entry thisEntry = bin.GetEntry(i);
-                thisEntry.EnvironmentMapIndex = -1;
-                bin.SetEntry(i, thisEntry);
-            }
-            bin.Save();
-        }
-        foreach (string file in Directory.EnumerateFiles(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\", "MODELS.MVR", SearchOption.AllDirectories))
-        {
-            //if (!file.Contains("SOLACE")) continue;
-            if (!File.Exists(file + ".old")) File.Copy(file, file + ".old");
-            CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(file);
-            for (int i = 0; i < mvr.EntryCount; i++)
-            {
-                CATHODE.Models.alien_mvr_entry thisEntry = mvr.GetEntry(i);
-                thisEntry.Transform = gameObject.transform.localToWorldMatrix;
-                mvr.SetEntry(i, thisEntry);
-            }
-            mvr.Save();
-        }
-        return;
-        */
+        //Load global assets
+        GlobalTextures = CATHODE.Textures.TexturePAK.Load(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        //alien_pak2 GlobalAnimations;
+        //alien_anim_string_db GlobalAnimationsStrings;
 
-        if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
+        //Load level stuff
+        LoadLevel(LEVEL_NAME);
 
-#if UNITY_EDITOR
-        levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + LEVEL_NAME;
-#else
-        levelPath = "DATA/ENV/PRODUCTION/" + LEVEL_NAME;
-#endif
-        Result = new alien_level();
 
-        //Parse content
-        string rootPath = (LEVEL_NAME.ToUpper().Substring(0, 3) == "DLC") ? levelPath + "/.." : levelPath;
-        Result.GlobalTextures = CATHODE.Textures.TexturePAK.Load(rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", rootPath + "/../../GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
-        Result.LevelTextures = CATHODE.Textures.TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
-        Result.ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
-        Result.ModelsMTL = CATHODE.Models.ModelsMTL.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
-        Result.ModelsBIN = CATHODE.Models.ModelBIN.Load(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN");
-        Result.ModelsPAK = CATHODE.Models.ModelPAK.Load(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
-        Result.ModelsMVR = new CATHODE.Models.ModelsMVR(levelPath + "/WORLD/MODELS.MVR");
-        Result.RenderableREDS = CATHODE.Misc.RenderableElementsBIN.Load(levelPath + "/WORLD/REDS.BIN");
-        Result.ShadersPAK = CATHODE.Shaders.ShadersPAK.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
-        //Result.ShadersBIN = TestProject.File_Handlers.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
-        Result.ShadersIDXRemap = CATHODE.Shaders.IDXRemap.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
 
-        Result.CollisionMap = CATHODE.Misc.CollisionMAP.Load(levelPath + "/WORLD/COLLISION.MAP");
-        Result.EnvironmentMap = new CATHODE.Misc.EnvironmentMapBIN(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
-        Result.PhysicsMap = CATHODE.Misc.PhysicsMAP.Load(levelPath + "/WORLD/PHYSICS.MAP");
+        //LoadLevel(SharedVals.instance.LevelName);
+    }
+
+    public void LoadLevel(string level)
+    {
+        LEVEL_NAME = level;
+        if (levelParent != null) Destroy(levelParent);
+
+        //Load level assets
+        Result = CATHODE.AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
-        LoadedTexturesGlobal = new AlienTexture[Result.GlobalTextures.BIN.Header.EntryCount];
+        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.BIN.Header.EntryCount];
         LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.BIN.Header.EntryCount];
-        bool[] TextureLoadTrackerGlobal = new bool[Result.GlobalTextures.BIN.Header.EntryCount];
+        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.BIN.Header.EntryCount];
         bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.BIN.Header.EntryCount];
-        for (int i = 0; i < Result.GlobalTextures.PAK.Header.EntryCount; i++)
+        for (int i = 0; i < GlobalTextures.PAK.Header.EntryCount; i++)
         {
-            int binIndex = Result.GlobalTextures.PAK.Entries[i].BINIndex;
+            int binIndex = GlobalTextures.PAK.Entries[i].BINIndex;
             LoadedTexturesGlobal[binIndex] = LoadTexture(i, 2, !TextureLoadTrackerGlobal[binIndex]);
             TextureLoadTrackerGlobal[binIndex] = true;
         }
@@ -128,7 +82,7 @@ public class AlienLevelLoader : MonoBehaviour
         levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisParent = new GameObject(i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
             Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
@@ -136,7 +90,7 @@ public class AlienLevelLoader : MonoBehaviour
             thisParent.transform.parent = levelParent.transform;
             for (int x = 0; x < Result.ModelsMVR.Entries[i].ModelCount; x++)
             {
-                alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].REDSIndex + x];
+                CATHODE.Misc.alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].REDSIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
             }
         }
@@ -144,10 +98,11 @@ public class AlienLevelLoader : MonoBehaviour
         //Pull content from COMMANDS
         //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
         //StartCoroutine(cmdLoader.LoadCommandsPAK(levelPath));
+
+        LevelLoadCompleted?.Invoke(Result);
     }
-    
+
     //first saving attempt
-    GameObject levelParent;
     public void SaveLevel()
     {
         for (int i = 0; i < levelParent.transform.childCount; i++)
@@ -946,7 +901,7 @@ public class AlienLevelLoader : MonoBehaviour
     public alien_textures GetTexturesTable(int TableIndex)
     {
         if (TableIndex == 0) return Result.LevelTextures;
-        if (TableIndex == 2) return Result.GlobalTextures;
+        if (TableIndex == 2) return GlobalTextures;
         throw new Exception("Texture bank can only be 0 or 2");
     }
 
@@ -1000,43 +955,6 @@ public class GameObjectHolder
     public Mesh MainMesh; //TODO: should this be contained in a globally referenced array?
     public int DefaultMaterial; 
 }
-
-public class alien_level
-{
-    public byte[] ModelsCST;
-    public alien_mtl ModelsMTL;
-    public alien_pak_model ModelsPAK;
-    public alien_model_bin ModelsBIN;
-    public CATHODE.Models.ModelsMVR ModelsMVR;
-
-    public alien_textures GlobalTextures;
-    public alien_textures LevelTextures;
-
-    public alien_shader_pak ShadersPAK;
-    public alien_shader_bin_pak ShadersBIN;
-    public alien_shader_idx_remap ShadersIDXRemap;
-
-    public alien_reds_bin RenderableREDS;
-
-    //alien_mvr ModelsMVR;
-    //alien_type_infos TypeInfos;
-    //alien_commands_bin CommandsBIN;
-    //alien_commands_pak CommandsPAK;
-    //alien_commands Commands;
-    //public alien_reds_bin WorldREDS; - this doesnt exist on win32
-    public alien_resources_bin ResourcesBIN;
-
-    public int MeshCount;
-
-    public alien_physics_map PhysicsMap;
-    public CATHODE.Misc.EnvironmentMapBIN EnvironmentMap;
-    public alien_collision_map CollisionMap;
-
-    //alien_animation_dat EnvironmentAnimation;
-
-    //alien_pak2 GlobalAnimations;
-    //alien_anim_string_db GlobalAnimationsStrings;
-};
 
 class MaterialPropertyIndex
 {

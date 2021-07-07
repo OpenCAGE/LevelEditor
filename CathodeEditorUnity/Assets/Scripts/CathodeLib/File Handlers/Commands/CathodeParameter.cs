@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+#if UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#else
+using System.Numerics;
+#endif
 
 namespace CATHODE.Commands
 {
@@ -53,8 +55,8 @@ namespace CATHODE.Commands
     }
     public class CathodeTransform : CathodeParameter
     {
-        public UnityEngine.Vector3 position = new UnityEngine.Vector3();
-        public UnityEngine.Vector3 rotation = new UnityEngine.Vector3();
+        public Vector3 position = new Vector3();
+        public Vector3 rotation = new Vector3();
     }
     public class CathodeInteger : CathodeParameter
     {
@@ -81,7 +83,7 @@ namespace CATHODE.Commands
     }
     public class CathodeVector3 : CathodeParameter
     {
-        public UnityEngine.Vector3 value = new UnityEngine.Vector3();
+        public Vector3 value = new Vector3();
     }
     public class CathodeEnum : CathodeParameter
     {
