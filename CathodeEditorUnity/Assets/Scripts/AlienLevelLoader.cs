@@ -6,48 +6,48 @@ using System.IO;
 using System;
 using System.Linq;
 using UnityEditor;
+using UnityEngine.UI;
 
 public class AlienLevelLoader : MonoBehaviour
 {
-    alien_level Result = null;
-    alien_textures GlobalTextures;
-
-    AlienTexture[] LoadedTexturesGlobal;
-    AlienTexture[] LoadedTexturesLevel;
-    GameObjectHolder[] LoadedModels;
-    Material[] LoadedMaterials;
-
     [SerializeField] private bool LOAD_COMMANDS_PAK = false;
     [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
 
-    [SerializeField] UnityEngine.UI.Text mvrindex1;
-    public void LoadMvrIndex()
-    {
-        List<CATHODE.Models.alien_mvr_entry> debugentries = new List<CATHODE.Models.alien_mvr_entry>();
-        foreach (string num in mvrindex1.text.Split(','))
-        {
-            debugentries.Add(Result.ModelsMVR.GetEntry(Convert.ToInt32(num)));
-        }
-        string breakhere = "";
-    }
+    public delegate void LoadedEvent(alien_level data);
+    public LoadedEvent LevelLoadCompleted;
 
-    [SerializeField] UnityEngine.UI.Text mvrindex2;
-    public void ResetMvrNodeId()
-    {
-        CATHODE.Models.alien_mvr_entry mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
-        mvr.NodeID = 0;
-        Result.ModelsMVR.SetEntry(Convert.ToInt32(mvrindex2.text), mvr);
-        Result.ModelsMVR.Save();
-    }
+    public alien_level CurrentLevel { get { return Result; } }
+    public string CurrentLevelName { get { return LEVEL_NAME; } }
+
+    private alien_level Result = null;
+    private alien_textures GlobalTextures;
+
+    private GameObject levelParent = null;
+
+    private AlienTexture[] LoadedTexturesGlobal;
+    private AlienTexture[] LoadedTexturesLevel;
+    private GameObjectHolder[] LoadedModels;
+    private Material[] LoadedMaterials;
 
     void Start()
     {
-        if (SharedVals.instance.LevelName != "") LEVEL_NAME = SharedVals.instance.LevelName;
-
         //Load global assets
         GlobalTextures = CATHODE.Textures.TexturePAK.Load(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
+
+        //Load level stuff
+        LoadLevel(LEVEL_NAME);
+
+
+
+        //LoadLevel(SharedVals.instance.LevelName);
+    }
+
+    public void LoadLevel(string level)
+    {
+        LEVEL_NAME = level;
+        if (levelParent != null) Destroy(levelParent);
 
         //Load level assets
         Result = CATHODE.AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
@@ -98,10 +98,11 @@ public class AlienLevelLoader : MonoBehaviour
         //Pull content from COMMANDS
         //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
         //StartCoroutine(cmdLoader.LoadCommandsPAK(levelPath));
+
+        LevelLoadCompleted?.Invoke(Result);
     }
-    
+
     //first saving attempt
-    GameObject levelParent;
     public void SaveLevel()
     {
         for (int i = 0; i < levelParent.transform.childCount; i++)
