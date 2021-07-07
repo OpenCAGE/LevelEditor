@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
@@ -25,6 +26,18 @@ public class NewLevelLoaderHud : MonoBehaviour
     [Header("Level Loader Page")]
     [SerializeField] private GameObject levelLoaderPage;
     [SerializeField] private TMPro.TMP_InputField levelNameToLoad;
+
+#if UNITY_EDITOR
+    int selectedMVR = 0;
+    private void Update()
+    {
+        string[] parts = (Selection.activeTransform != null && Selection.activeTransform.gameObject != null) ? Selection.activeTransform.gameObject.name.Split('/') : null;
+        if (parts == null || parts.Length != 3) return;
+        selectedMVR = Convert.ToInt32(parts[0]);
+        if (loadedMVR != selectedMVR) LoadMVR(selectedMVR);
+        if (loadedEditMVR != selectedMVR) LoadMVRToEdit(selectedMVR);
+    }
+#endif
 
     void Start()
     {
@@ -61,18 +74,24 @@ public class NewLevelLoaderHud : MonoBehaviour
         mvrEditorPage.SetActive(true);
     }
 
+    private int loadedMVR = -1;
     public void LoadMVR(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndex.text);
         alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
         mvrInfoDump.text = JsonUtility.ToJson(entry, true);
+        loadedMVR = index;
+        mvrIndex.text = index.ToString();
     }
 
+    private int loadedEditMVR = -1;
     public void LoadMVRToEdit(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
         alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
         mvrContentEditor.text = JsonUtility.ToJson(entry, true);
+        loadedEditMVR = index;
+        mvrIndexEditor.text = index.ToString();
     }
     public void SaveMVRFromEdit(int index = -1)
     {
