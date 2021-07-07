@@ -27,6 +27,11 @@ public class NewLevelLoaderHud : MonoBehaviour
     [SerializeField] private GameObject levelLoaderPage;
     [SerializeField] private TMPro.TMP_InputField levelNameToLoad;
 
+    [Header("MVR Bulk Info Editor Page")]
+    [SerializeField] private GameObject mvrBulkEditorPage;
+    [SerializeField] private TMPro.TMP_InputField mvrTypeToSetFromBulk;
+    [SerializeField] private TMPro.TMP_InputField mvrTypeToSetBulk;
+
 #if UNITY_EDITOR
     string selectedObject = "";
     private void Update()
@@ -75,18 +80,28 @@ public class NewLevelLoaderHud : MonoBehaviour
         mvrViewerPage.SetActive(true);
         levelLoaderPage.SetActive(false);
         mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(false);
     }
     public void TAB_ShowLoadLevel()
     {
         mvrViewerPage.SetActive(false);
         levelLoaderPage.SetActive(true);
         mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(false);
     }
     public void TAB_ShowEditMVR()
     {
         mvrViewerPage.SetActive(false);
         levelLoaderPage.SetActive(false);
         mvrEditorPage.SetActive(true);
+        mvrBulkEditorPage.SetActive(false);
+    }
+    public void TAB_ShowBulkEditMVR()
+    {
+        mvrViewerPage.SetActive(false);
+        levelLoaderPage.SetActive(false);
+        mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(true);
     }
 
     private int loadedMVR = -1;
@@ -129,6 +144,18 @@ public class NewLevelLoaderHud : MonoBehaviour
             levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
 
             break;
+        }
+        levelLoader.CurrentLevel.ModelsMVR.Save();
+    }
+
+    public void BulkEditMVRTypes()
+    {
+        for (int i = 0; i < levelLoader.CurrentLevel.ModelsMVR.Entries.Count; i++)
+        {
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
+            if (thisEntry.IsThisTypeID == (ushort)Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
+            thisEntry.IsThisTypeID = (ushort)Convert.ToInt32(mvrTypeToSetBulk.text);
+            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
         }
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }
