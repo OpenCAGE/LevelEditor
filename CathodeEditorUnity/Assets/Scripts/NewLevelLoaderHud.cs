@@ -28,14 +28,29 @@ public class NewLevelLoaderHud : MonoBehaviour
     [SerializeField] private TMPro.TMP_InputField levelNameToLoad;
 
 #if UNITY_EDITOR
-    int selectedMVR = 0;
+    string selectedObject = "";
     private void Update()
     {
-        string[] parts = (Selection.activeTransform != null && Selection.activeTransform.gameObject != null) ? Selection.activeTransform.gameObject.name.Split('/') : null;
+        if (Selection.activeTransform == null || Selection.activeTransform.gameObject == null) return;
+        if (selectedObject == Selection.activeTransform.gameObject.name) return;
+        selectedObject = Selection.activeTransform.gameObject.name;
+        string thisSelectedObject = selectedObject;
+        if (!(thisSelectedObject.Length >= 5 && thisSelectedObject.Substring(0, 5) == "MVR: "))
+        {
+            if (Selection.activeTransform.gameObject.transform.parent != null)
+            {
+                string selectedObjectParent = Selection.activeTransform.gameObject.transform.parent.gameObject.name;
+                if (!(selectedObjectParent.Length >= 5 && selectedObjectParent.Substring(0, 5) == "MVR: ")) return;
+                thisSelectedObject = selectedObjectParent;
+            }
+            else return;
+        }
+        string[] parts = thisSelectedObject.Substring(5).Split('/');
         if (parts == null || parts.Length != 3) return;
-        selectedMVR = Convert.ToInt32(parts[0]);
-        if (loadedMVR != selectedMVR) LoadMVR(selectedMVR);
-        if (loadedEditMVR != selectedMVR) LoadMVRToEdit(selectedMVR);
+        int selectedObjectI = 0;
+        try { selectedObjectI = Convert.ToInt32(parts[0]); } catch { }
+        if (loadedMVR != selectedObjectI) LoadMVR(selectedObjectI);
+        if (loadedEditMVR != selectedObjectI) LoadMVRToEdit(selectedObjectI);
     }
 #endif
 

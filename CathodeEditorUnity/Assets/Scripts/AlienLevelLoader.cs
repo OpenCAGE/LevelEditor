@@ -82,7 +82,7 @@ public class AlienLevelLoader : MonoBehaviour
         levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisParent = new GameObject(i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
             Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
