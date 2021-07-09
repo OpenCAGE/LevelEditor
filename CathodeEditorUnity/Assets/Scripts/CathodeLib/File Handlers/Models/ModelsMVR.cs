@@ -68,7 +68,8 @@ namespace CATHODE.Models
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
         public Vector4[] InstanceState;
-        public UInt32 UnknownID; // TODO: Is this an ID or two u16s?
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public byte[] UnknownID; // TODO: Is this an ID or two u16s?
         public float UnknownValue3_;
         public float UnknownValue4_;
         public Int32 Unknown2_;
@@ -87,14 +88,17 @@ namespace CATHODE.Models
         public UInt32 ResourcesBINIndex; // NOTE: This is actually 'IndexFromMVREntry' field on 'alien_resources_bin_entry'
 
         public Vector4 Unknowns5_;
-        public UInt32 NodeID; // Index 52
-        public UInt32 ResourcesBINID; // NOTE: This is 'IDFromMVREntry' field on 'alien_resources_bin_entry'.
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public byte[] NodeID; // Index 52
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public byte[] ResourcesBINID; // NOTE: This is 'IDFromMVREntry' field on 'alien_resources_bin_entry'.
         public UInt32 EnvironmentMapBINIndex; // NOTE: Tells me which Environment Map texture to use.
         public UInt32 UnknownValue1;
 
         public float UnknownValue;
         public UInt32 Unknown5_;
-        public UInt32 CollisionMapThingID;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public byte[] CollisionMapThingID;
         public UInt32 Unknowns60_;
         public UInt32 Unknowns61_;
         public UInt16 Unknown17_;   // TODO: It is -1 most of the time, but some times it isn't.

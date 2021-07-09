@@ -110,8 +110,11 @@ public class NewLevelLoaderHud : MonoBehaviour
         if (index == -1) index = Convert.ToInt32(mvrIndex.text);
         alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
         mvrInfoDump.text = JsonUtility.ToJson(entry, true);
+        mvrInfoDump.text += "\n\nNodeID: " + BitConverter.ToString(entry.NodeID) + "\nResourcesBINID: " + BitConverter.ToString(entry.ResourcesBINID) + "\nCollisionMapThingID: " + BitConverter.ToString(entry.CollisionMapThingID) + "\nUnknownID: " + BitConverter.ToString(entry.UnknownID);
         loadedMVR = index;
         mvrIndex.text = index.ToString();
+
+        Debug.Log("NodeID: " + BitConverter.ToString(entry.NodeID));
     }
 
     private int loadedEditMVR = -1;
