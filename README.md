@@ -2,6 +2,16 @@
 
 <img src="https://i.imgur.com/Cw2GbgO.png" width="100%">
 
-A work-in-progress project to build a level editor for Alien: Isolation. Currently in a highly experimental state and not fit for use! MVR objects are currently supported, however COMMANDS objects are not (coming soon!). A range of material types have also not been implemented yet, nor FX or lighting - so maps will not look 1:1 as they do in-game.
+A work-in-progress project to build a level editor for Alien: Isolation. Currently in a highly experimental state and not really fit for use! 
+
+Supported:
+ - 3D models
+ - MVR entities
+ - Common material types
+ 
+Not yet supported:
+ - COMMANDS entities (change an MVR's `IsThisTypeID` to 3 to pull transform data from MVR)
+ - Less common material types
+ - Lighting
 
 This tool will eventually become a part of [OpenCAGE](https://github.com/MattFiler/OpenCAGE).
