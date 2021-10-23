@@ -27,6 +27,11 @@ public class NewLevelLoaderHud : MonoBehaviour
     [SerializeField] private GameObject levelLoaderPage;
     [SerializeField] private TMPro.TMP_InputField levelNameToLoad;
 
+    [Header("MVR Bulk Info Editor Page")]
+    [SerializeField] private GameObject mvrBulkEditorPage;
+    [SerializeField] private TMPro.TMP_InputField mvrTypeToSetFromBulk;
+    [SerializeField] private TMPro.TMP_InputField mvrTypeToSetBulk;
+
 #if UNITY_EDITOR
     string selectedObject = "";
     private void Update()
@@ -57,7 +62,7 @@ public class NewLevelLoaderHud : MonoBehaviour
     void Start()
     {
         levelLoader.LevelLoadCompleted += OnLevelLoaded;
-        TAB_ShowMvrInfo();
+        TAB_ShowLoadLevel();
     }
 
     private void OnLevelLoaded(alien_level data)
@@ -75,18 +80,28 @@ public class NewLevelLoaderHud : MonoBehaviour
         mvrViewerPage.SetActive(true);
         levelLoaderPage.SetActive(false);
         mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(false);
     }
     public void TAB_ShowLoadLevel()
     {
         mvrViewerPage.SetActive(false);
         levelLoaderPage.SetActive(true);
         mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(false);
     }
     public void TAB_ShowEditMVR()
     {
         mvrViewerPage.SetActive(false);
         levelLoaderPage.SetActive(false);
         mvrEditorPage.SetActive(true);
+        mvrBulkEditorPage.SetActive(false);
+    }
+    public void TAB_ShowBulkEditMVR()
+    {
+        mvrViewerPage.SetActive(false);
+        levelLoaderPage.SetActive(false);
+        mvrEditorPage.SetActive(false);
+        mvrBulkEditorPage.SetActive(true);
     }
 
     private int loadedMVR = -1;
@@ -95,8 +110,11 @@ public class NewLevelLoaderHud : MonoBehaviour
         if (index == -1) index = Convert.ToInt32(mvrIndex.text);
         alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
         mvrInfoDump.text = JsonUtility.ToJson(entry, true);
+        mvrInfoDump.text += "\n\nNodeID: " + BitConverter.ToString(entry.NodeID) + "\nResourcesBINID: " + BitConverter.ToString(entry.ResourcesBINID) + "\nCollisionMapThingID: " + BitConverter.ToString(entry.CollisionMapThingID) + "\nUnknownID: " + BitConverter.ToString(entry.UnknownID);
         loadedMVR = index;
         mvrIndex.text = index.ToString();
+
+        Debug.Log("NodeID: " + BitConverter.ToString(entry.NodeID));
     }
 
     private int loadedEditMVR = -1;
@@ -112,6 +130,36 @@ public class NewLevelLoaderHud : MonoBehaviour
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
         levelLoader.CurrentLevel.ModelsMVR.SetEntry(index, JsonUtility.FromJson<alien_mvr_entry>(mvrContentEditor.text));
+        levelLoader.CurrentLevel.ModelsMVR.Save();
+    }
+    public void SaveMVRTransformFromEdit(int index = -1)
+    {
+        if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
+        for (int i = 0; i < levelLoader.CurrentLevelGameObject.transform.childCount; i++)
+        {
+            if (index != i) continue;
+
+            GameObject mvrEntry = levelLoader.CurrentLevelGameObject.transform.GetChild(i).gameObject;
+            if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
+
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
+            thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
+            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
+
+            break;
+        }
+        levelLoader.CurrentLevel.ModelsMVR.Save();
+    }
+
+    public void BulkEditMVRTypes()
+    {
+        for (int i = 0; i < levelLoader.CurrentLevel.ModelsMVR.Entries.Count; i++)
+        {
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
+            if (thisEntry.IsThisTypeID == (ushort)Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
+            thisEntry.IsThisTypeID = (ushort)Convert.ToInt32(mvrTypeToSetBulk.text);
+            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
+        }
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }
 

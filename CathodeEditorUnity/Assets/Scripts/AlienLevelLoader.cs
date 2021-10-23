@@ -1,12 +1,8 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
 using System.IO;
 using System;
-using System.Linq;
-using UnityEditor;
-using UnityEngine.UI;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -18,6 +14,7 @@ public class AlienLevelLoader : MonoBehaviour
 
     public alien_level CurrentLevel { get { return Result; } }
     public string CurrentLevelName { get { return LEVEL_NAME; } }
+    public GameObject CurrentLevelGameObject { get { return levelParent; } }
 
     private alien_level Result = null;
     private alien_textures GlobalTextures;
@@ -31,13 +28,25 @@ public class AlienLevelLoader : MonoBehaviour
 
     void Start()
     {
+        /*
+        CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_HUB\WORLD\MODELS.MVR");
+        for (int i =0; i < mvr.EntryCount; i++)
+        {
+            CATHODE.Models.alien_mvr_entry entry = mvr.GetEntry(i);
+            entry.IsThisTypeID = 6;
+            mvr.SetEntry(i, entry);
+        }
+        mvr.Save();
+        return;
+        */
+
         //Load global assets
         GlobalTextures = CATHODE.Textures.TexturePAK.Load(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
         //Load level stuff
-        LoadLevel(LEVEL_NAME);
+        //LoadLevel(LEVEL_NAME);
 
 
 
@@ -108,7 +117,7 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < levelParent.transform.childCount; i++)
         {
             GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
-            if (mvrEntry.name.Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
+            if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
             CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.GetEntry(i);
             thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
