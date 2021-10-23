@@ -1072,7 +1072,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 56.3
+  m_fontSize: 72
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1180,7 +1180,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LOAD_COMMANDS_PAK: 0
-  LEVEL_NAME: solace
+  LEVEL_NAME: dlc/salvagemode1
 --- !u!1 &331644025
 GameObject:
   m_ObjectHideFlags: 0
@@ -6308,7 +6308,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1523324055}
   m_HandleRect: {fileID: 1523324054}
   m_Direction: 0
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:

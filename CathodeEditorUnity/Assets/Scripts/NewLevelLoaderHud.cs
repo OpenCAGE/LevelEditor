@@ -62,7 +62,7 @@ public class NewLevelLoaderHud : MonoBehaviour
     void Start()
     {
         levelLoader.LevelLoadCompleted += OnLevelLoaded;
-        TAB_ShowMvrInfo();
+        TAB_ShowLoadLevel();
     }
 
     private void OnLevelLoaded(alien_level data)
