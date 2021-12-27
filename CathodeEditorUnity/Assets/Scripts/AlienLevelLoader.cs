@@ -89,17 +89,17 @@ public class AlienLevelLoader : MonoBehaviour
 
         //Populate the level with "movers"
         levelParent = new GameObject(LEVEL_NAME);
-        for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
+        for (int i = 0; i < Result.ModelsMVR.Movers.Count; i++)
         {
-            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Entries[i].REDSIndex + "/" + Result.ModelsMVR.Entries[i].ModelCount);
-            Matrix4x4 m = Result.ModelsMVR.Entries[i].Transform;
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Movers[i].REDSIndex + "/" + Result.ModelsMVR.Movers[i].ModelCount);
+            Matrix4x4 m = Result.ModelsMVR.Movers[i].Transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
             thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
             thisParent.transform.parent = levelParent.transform;
-            for (int x = 0; x < Result.ModelsMVR.Entries[i].ModelCount; x++)
+            for (int x = 0; x < Result.ModelsMVR.Movers[i].ModelCount; x++)
             {
-                CATHODE.Misc.alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].REDSIndex + x];
+                CATHODE.Misc.alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Movers[i].REDSIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
             }
         }
@@ -119,9 +119,9 @@ public class AlienLevelLoader : MonoBehaviour
             GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
             if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
-            CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.GetEntry(i);
+            CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.Movers[i];
             thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
-            Result.ModelsMVR.SetEntry(i, thisEntry);
+            Result.ModelsMVR.Movers[i] = thisEntry;
         }
 
         Result.ModelsMVR.Save();
@@ -441,7 +441,7 @@ public class AlienLevelLoader : MonoBehaviour
                         }
                     }
                 }
-                CATHODE.Utilities.Align(ref Stream, 16);
+                CATHODE.Utilities.Align(Stream, 16);
             }
 
             if (InVertices.Count == 0) continue;
@@ -900,7 +900,7 @@ public class AlienLevelLoader : MonoBehaviour
     private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
     {
         cstReader.BaseStream.Position = offset;
-        return Utilities.Consume<T>(ref cstReader);
+        return Utilities.Consume<T>(cstReader);
     }
     private bool CSTIndexValid(int i, ref alien_shader_pak_shader Shader)
     {

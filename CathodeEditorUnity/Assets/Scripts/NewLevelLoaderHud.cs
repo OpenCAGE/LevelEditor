@@ -108,20 +108,20 @@ public class NewLevelLoaderHud : MonoBehaviour
     public void LoadMVR(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndex.text);
-        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
+        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
         mvrInfoDump.text = JsonUtility.ToJson(entry, true);
-        mvrInfoDump.text += "\n\nNodeID: " + BitConverter.ToString(entry.NodeID) + "\nResourcesBINID: " + BitConverter.ToString(entry.ResourcesBINID) + "\nCollisionMapThingID: " + BitConverter.ToString(entry.CollisionMapThingID) + "\nUnknownID: " + BitConverter.ToString(entry.UnknownID);
+        mvrInfoDump.text += "\n\nNodeID: " + entry.NodeID + "\nResourcesBINID: " + entry.ResourcesBINID + "\nCollisionMapThingID: " + entry.CollisionMapThingID + "\nUnknownID: " + entry.UnknownID;
         loadedMVR = index;
         mvrIndex.text = index.ToString();
 
-        Debug.Log("NodeID: " + BitConverter.ToString(entry.NodeID));
+        Debug.Log("NodeID: " + entry.NodeID);
     }
 
     private int loadedEditMVR = -1;
     public void LoadMVRToEdit(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
-        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Entries[index];
+        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
         mvrContentEditor.text = JsonUtility.ToJson(entry, true);
         loadedEditMVR = index;
         mvrIndexEditor.text = index.ToString();
@@ -129,7 +129,7 @@ public class NewLevelLoaderHud : MonoBehaviour
     public void SaveMVRFromEdit(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
-        levelLoader.CurrentLevel.ModelsMVR.SetEntry(index, JsonUtility.FromJson<alien_mvr_entry>(mvrContentEditor.text));
+        levelLoader.CurrentLevel.ModelsMVR.Movers[index] = JsonUtility.FromJson<alien_mvr_entry>(mvrContentEditor.text);
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }
     public void SaveMVRTransformFromEdit(int index = -1)
@@ -142,9 +142,9 @@ public class NewLevelLoaderHud : MonoBehaviour
             GameObject mvrEntry = levelLoader.CurrentLevelGameObject.transform.GetChild(i).gameObject;
             if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
-            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
             thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
-            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
+            levelLoader.CurrentLevel.ModelsMVR.Movers[i] = thisEntry;
 
             break;
         }
@@ -153,12 +153,12 @@ public class NewLevelLoaderHud : MonoBehaviour
 
     public void BulkEditMVRTypes()
     {
-        for (int i = 0; i < levelLoader.CurrentLevel.ModelsMVR.Entries.Count; i++)
+        for (int i = 0; i < levelLoader.CurrentLevel.ModelsMVR.Movers.Count; i++)
         {
-            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.GetEntry(i);
-            if (thisEntry.IsThisTypeID == (ushort)Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
-            thisEntry.IsThisTypeID = (ushort)Convert.ToInt32(mvrTypeToSetBulk.text);
-            levelLoader.CurrentLevel.ModelsMVR.SetEntry(i, thisEntry);
+            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
+            if (thisEntry.IsThisTypeID == (MVREntryType)Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
+            thisEntry.IsThisTypeID = (MVREntryType)Convert.ToInt32(mvrTypeToSetBulk.text);
+            levelLoader.CurrentLevel.ModelsMVR.Movers[i] = thisEntry;
         }
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }

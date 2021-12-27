@@ -9,6 +9,7 @@ using CathodeLib;
 
 public class CommandsLoader : MonoBehaviour
 {
+    /*
     private CommandsPAK commandsPAK = null;
     private List<int> redsBIN;
     private List<PreloadedFlowgraphContent> preloadedModelReferenceNodes = new List<PreloadedFlowgraphContent>();
@@ -184,5 +185,5 @@ public class PosAndRot
     }
 
     public Vector3 position = new Vector3();
-    public Quaternion rotation = new Quaternion();
+    public Quaternion rotation = new Quaternion();*/
 }

@@ -22,7 +22,7 @@ public class CacheLevel : MonoBehaviour
         LoadMaterialAssets();
         LoadFlowgraphAssets();
 
-        for (int i = 0; i < levelData.CommandsPAK.EntryPoints.Count; i++)
+        for (int i = 0; i < levelData.CommandsPAK.EntryPoints.Length; i++)
         {
             GameObject flowgraphGO = PrefabUtility.InstantiatePrefab(Resources.Load<GameObject>(GetFlowgraphAssetPath(levelData.CommandsPAK.EntryPoints[i], true))) as GameObject;
             flowgraphGO.name = levelData.CommandsPAK.EntryPoints[i].name;
@@ -36,7 +36,7 @@ public class CacheLevel : MonoBehaviour
     {
         bool[] textureTracker = new bool[levelData.LevelTextures.BIN.Header.EntryCount];
         AssetDatabase.StartAssetEditing();
-        for (int i = 0; i < levelData.LevelTextures.PAK.Entries.Count; i++)
+        for (int i = 0; i < levelData.LevelTextures.PAK.Entries.Length; i++)
         {
             alien_pak_entry Entry = levelData.LevelTextures.PAK.Entries[i];
             alien_texture_bin_texture InTexture = levelData.LevelTextures.BIN.Textures[Entry.BINIndex];
@@ -311,7 +311,7 @@ public class CacheLevel : MonoBehaviour
                             }
                         }
                     }
-                    CATHODE.Utilities.Align(ref Stream, 16);
+                    CATHODE.Utilities.Align(Stream, 16);
                 }
 
                 if (InVertices.Count == 0) continue;
@@ -349,6 +349,7 @@ public class CacheLevel : MonoBehaviour
 
     private void LoadFlowgraphAssets()
     {
+        /*
         //First, make dummy prefabs of all flowgraphs
         GameObject rootGO = new GameObject();
         AssetDatabase.StartAssetEditing();
@@ -448,6 +449,7 @@ public class CacheLevel : MonoBehaviour
         }
         AssetDatabase.StopAssetEditing();
         Destroy(rootGO);
+        */
     }
 
     private string GetMeshAssetPath(int binIndex, bool resourcePath = false)
