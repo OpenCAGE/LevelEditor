@@ -1,11 +1,13 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using CATHODE.Commands;
 using UnityEditor;
 using System.IO;
 using System.Linq;
 using System;
+using CATHODE.LEGACY;
+using static CATHODE.LEGACY.CathodeModels;
+using CathodeLib;
 
 public class CacheLevel : MonoBehaviour
 {
@@ -14,7 +16,7 @@ public class CacheLevel : MonoBehaviour
 
     void Start()
     {
-        levelData = CATHODE.AlienLevel.Load(SharedVals.instance.LevelName, SharedVals.instance.PathToEnv);
+        levelData = AlienLevel.Load(SharedVals.instance.LevelName, SharedVals.instance.PathToEnv);
         levelGO = new GameObject(SharedVals.instance.LevelName);
 
         LoadTextureAssets();
@@ -34,12 +36,12 @@ public class CacheLevel : MonoBehaviour
 
     private void LoadTextureAssets()
     {
-        bool[] textureTracker = new bool[levelData.LevelTextures.BIN.Header.EntryCount];
+        bool[] textureTracker = new bool[levelData.LevelTextures.Header.EntryCount];
         AssetDatabase.StartAssetEditing();
-        for (int i = 0; i < levelData.LevelTextures.PAK.Entries.Length; i++)
+        for (int i = 0; i < levelData.LevelTextures.entryHeaders.Length; i++)
         {
-            alien_pak_entry Entry = levelData.LevelTextures.PAK.Entries[i];
-            alien_texture_bin_texture InTexture = levelData.LevelTextures.BIN.Textures[Entry.BINIndex];
+            GenericPAKEntry Entry = levelData.LevelTextures.entryHeaders[i];
+            TextureEntry InTexture = levelData.LevelTextures.Textures[Entry.BINIndex];
 
             Vector2 textureDims;
             int textureLength = 0;
@@ -60,46 +62,46 @@ public class CacheLevel : MonoBehaviour
             textureTracker[Entry.BINIndex] = true;
 
             if (textureLength == 0) continue;
-            if (InTexture.Format == alien_texture_format.Alien_FORMAT_SIGNED_DISTANCE_FIELD || InTexture.Format == alien_texture_format.Alien_FORMAT_BC2) continue;
+            if (InTexture.Format == CATHODE.LEGACY.TextureFormat.SIGNED_DISTANCE_FIELD || InTexture.Format == CATHODE.LEGACY.TextureFormat.DDS_BC2) continue;
 
-            TextureFormat format = TextureFormat.BC7;
+            UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
             switch (InTexture.Format)
             {
-                case alien_texture_format.Alien_R32G32B32A32_SFLOAT:
-                    format = TextureFormat.RGBA32;
+                case CATHODE.LEGACY.TextureFormat.R32G32B32A32_SFLOAT:
+                    format = UnityEngine.TextureFormat.RGBA32;
                     break;
-                case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM:
-                    format = TextureFormat.ETC2_RGBA8; //?
+                case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM:
+                    format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                     break;
-                case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM_0:
-                    format = TextureFormat.ETC2_RGBA8; //?
+                case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM_0:
+                    format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                     break;
-                case alien_texture_format.Alien_FORMAT_R8:
-                    format = TextureFormat.R8;
+                case CATHODE.LEGACY.TextureFormat.R8:
+                    format = UnityEngine.TextureFormat.R8;
                     break;
-                case alien_texture_format.Alien_FORMAT_BC1:
-                    format = TextureFormat.DXT1;
+                case CATHODE.LEGACY.TextureFormat.DDS_BC1:
+                    format = UnityEngine.TextureFormat.DXT1;
                     break;
-                case alien_texture_format.Alien_FORMAT_BC5:
-                    format = TextureFormat.BC5; //Is this correct?
+                case CATHODE.LEGACY.TextureFormat.DDS_BC5:
+                    format = UnityEngine.TextureFormat.BC5; //Is this correct?
                     break;
-                case alien_texture_format.Alien_FORMAT_BC3:
-                    format = TextureFormat.DXT5;
+                case CATHODE.LEGACY.TextureFormat.DDS_BC3:
+                    format = UnityEngine.TextureFormat.DXT5;
                     break;
-                case alien_texture_format.Alien_FORMAT_BC7:
-                    format = TextureFormat.BC7;
+                case CATHODE.LEGACY.TextureFormat.DDS_BC7:
+                    format = UnityEngine.TextureFormat.BC7;
                     break;
-                case alien_texture_format.Alien_FORMAT_R8G8:
-                    format = TextureFormat.BC5; // is this correct?
+                case CATHODE.LEGACY.TextureFormat.R8G8:
+                    format = UnityEngine.TextureFormat.BC5; // is this correct?
                     break;
             }
 
-            BinaryReader tempReader = new BinaryReader(new MemoryStream(levelData.LevelTextures.PAK.DataStart));
+            BinaryReader tempReader = new BinaryReader(new MemoryStream(levelData.LevelTextures.dataStart));
             tempReader.BaseStream.Position = Entry.Offset;
             if (InTexture.Type == 7)
             {
                 Cubemap cubemap = new Cubemap((int)textureDims.x, format, true);
-                cubemap.name = levelData.LevelTextures.BIN.TextureFilePaths[Entry.BINIndex];
+                cubemap.name = levelData.LevelTextures.TextureFilePaths[Entry.BINIndex];
                 cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
                 cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
                 cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
@@ -116,7 +118,7 @@ public class CacheLevel : MonoBehaviour
             else
             {
                 Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-                texture.name = levelData.LevelTextures.BIN.TextureFilePaths[Entry.BINIndex];
+                texture.name = levelData.LevelTextures.TextureFilePaths[Entry.BINIndex];
                 texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
                 texture.Apply();
 
@@ -135,17 +137,17 @@ public class CacheLevel : MonoBehaviour
         AssetDatabase.StartAssetEditing();
         for (int i = 0; i < levelData.ModelsPAK.Models.Count; i++)
         {
-            alien_pak_model_entry ChunkArray = levelData.ModelsPAK.Models[i];
-            for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.ChunkCount; ++ChunkIndex)
+            ModelData ChunkArray = levelData.ModelsPAK.Models[i];
+            for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
             {
-                int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
+                int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
                 alien_model_bin_model_info Model = levelData.ModelsBIN.Models[BINIndex];
                 //if (Model.BlockSize == 0) continue;
 
                 alien_vertex_buffer_format VertexInput = levelData.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
                 alien_vertex_buffer_format VertexInputLowDetail = levelData.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
 
-                BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Chunks[ChunkIndex]));
+                BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
 
                 List<List<alien_vertex_buffer_format_element>> Elements = new List<List<alien_vertex_buffer_format_element>>();
                 alien_vertex_buffer_format_element ElementHeader = new alien_vertex_buffer_format_element();
@@ -311,7 +313,7 @@ public class CacheLevel : MonoBehaviour
                             }
                         }
                     }
-                    CATHODE.Utilities.Align(Stream, 16);
+                    CathodeLib.Utilities.Align(Stream, 16);
                 }
 
                 if (InVertices.Count == 0) continue;
@@ -458,7 +460,7 @@ public class CacheLevel : MonoBehaviour
         if (resourcePath) return basePath;
         else return "Assets/Resources/" + basePath + ".asset";
     }
-    private string GetFlowgraphAssetPath(CathodeFlowgraph flowgraph, bool resourcePath = false)
+    private string GetFlowgraphAssetPath(CATHODE.Scripting.Composite flowgraph, bool resourcePath = false)
     {
         string basePath = SharedVals.instance.LevelName + "/Flowgraphs/" + flowgraph.name.Replace("\\", "/").Replace(":", "_");
         if (resourcePath) return basePath;

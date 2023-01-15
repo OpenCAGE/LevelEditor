@@ -1,4 +1,4 @@
-﻿using CATHODE.Models;
+﻿using CATHODE;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -108,20 +108,20 @@ public class NewLevelLoaderHud : MonoBehaviour
     public void LoadMVR(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndex.text);
-        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
+        MoverDatabase.MOVER_DESCRIPTOR entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
         mvrInfoDump.text = JsonUtility.ToJson(entry, true);
-        mvrInfoDump.text += "\n\nNodeID: " + entry.NodeID + "\nResourcesBINID: " + entry.ResourcesBINID + "\nCollisionMapThingID: " + entry.CollisionMapThingID + "\nUnknownID: " + entry.UnknownID;
+        //mvrInfoDump.text += "\n\nNodeID: " + entry.NodeID + "\nResourcesBINID: " + entry.ResourcesBINID + "\nCollisionMapThingID: " + entry.CollisionMapThingID + "\nUnknownID: " + entry.UnknownID;
         loadedMVR = index;
         mvrIndex.text = index.ToString();
 
-        Debug.Log("NodeID: " + entry.NodeID);
+        Debug.Log("NodeID: " + entry.commandsNodeID);
     }
 
     private int loadedEditMVR = -1;
     public void LoadMVRToEdit(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
-        alien_mvr_entry entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
+        MoverDatabase.MOVER_DESCRIPTOR entry = levelLoader.CurrentLevel.ModelsMVR.Movers[index];
         mvrContentEditor.text = JsonUtility.ToJson(entry, true);
         loadedEditMVR = index;
         mvrIndexEditor.text = index.ToString();
@@ -129,7 +129,7 @@ public class NewLevelLoaderHud : MonoBehaviour
     public void SaveMVRFromEdit(int index = -1)
     {
         if (index == -1) index = Convert.ToInt32(mvrIndexEditor.text);
-        levelLoader.CurrentLevel.ModelsMVR.Movers[index] = JsonUtility.FromJson<alien_mvr_entry>(mvrContentEditor.text);
+        levelLoader.CurrentLevel.ModelsMVR.Movers[index] = JsonUtility.FromJson<MoverDatabase.MOVER_DESCRIPTOR>(mvrContentEditor.text);
         levelLoader.CurrentLevel.ModelsMVR.Save();
     }
     public void SaveMVRTransformFromEdit(int index = -1)
@@ -142,8 +142,8 @@ public class NewLevelLoaderHud : MonoBehaviour
             GameObject mvrEntry = levelLoader.CurrentLevelGameObject.transform.GetChild(i).gameObject;
             if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
-            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
-            thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
+            MoverDatabase.MOVER_DESCRIPTOR thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
+            thisEntry.transform = mvrEntry.transform.localToWorldMatrix;
             levelLoader.CurrentLevel.ModelsMVR.Movers[i] = thisEntry;
 
             break;
@@ -155,9 +155,9 @@ public class NewLevelLoaderHud : MonoBehaviour
     {
         for (int i = 0; i < levelLoader.CurrentLevel.ModelsMVR.Movers.Count; i++)
         {
-            alien_mvr_entry thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
-            if (thisEntry.IsThisTypeID == (MVREntryType)Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
-            thisEntry.IsThisTypeID = (MVREntryType)Convert.ToInt32(mvrTypeToSetBulk.text);
+            MoverDatabase.MOVER_DESCRIPTOR thisEntry = levelLoader.CurrentLevel.ModelsMVR.Movers[i];
+            if (thisEntry.instanceTypeFlags == Convert.ToInt32(mvrTypeToSetFromBulk.text)) continue;
+            thisEntry.instanceTypeFlags = (ushort)Convert.ToInt32(mvrTypeToSetBulk.text);
             levelLoader.CurrentLevel.ModelsMVR.Movers[i] = thisEntry;
         }
         levelLoader.CurrentLevel.ModelsMVR.Save();
@@ -174,13 +174,13 @@ public class NewLevelLoaderHud : MonoBehaviour
     [SerializeField] InputField mvrtypeid;
     public void ShowMvrIdInUi()
     {
-        CATHODE.Models.alien_mvr_entry mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
-        mvrtypeid.text = mvr.IsThisTypeID.ToString();
+        CATHODE.Models.MoverDatabase.MOVER_DESCRIPTOR mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
+        mvrtypeid.text = mvr.instanceTypeFlags.ToString();
     }
     public void UpdateMvrIdFromUi()
     {
-        CATHODE.Models.alien_mvr_entry mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
-        mvr.IsThisTypeID = (ushort)Convert.ToInt32(mvrtypeid.text);
+        CATHODE.Models.MoverDatabase.MOVER_DESCRIPTOR mvr = Result.ModelsMVR.GetEntry(Convert.ToInt32(mvrindex2.text));
+        mvr.instanceTypeFlags = (ushort)Convert.ToInt32(mvrtypeid.text);
         Result.ModelsMVR.SetEntry(Convert.ToInt32(mvrindex2.text), mvr);
         Result.ModelsMVR.Save();
     }

@@ -1,8 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using CATHODE.Textures;
 using System.IO;
+using CATHODE.LEGACY;
 
 //THIS IS ALL TEMP FOR TESTING
 public class TestTextureEd : MonoSingleton<TestTextureEd>
@@ -11,20 +11,20 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
     [SerializeField] UnityEngine.UI.Image previewImg;
     [SerializeField] TMPro.TextMeshProUGUI previewText;
 
-    alien_textures LevelTextures;
+    CathodeTextures LevelTextures;
     AlienTexture[] LoadedTexturesLevel;
     AlienTexture selectedTex = null;
 
     void Start()
     { 
         string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\BSP_TORRENS\";
-        LevelTextures = TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
+        LevelTextures = new CathodeTextures(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
 
-        LoadedTexturesLevel = new AlienTexture[LevelTextures.BIN.Header.EntryCount];
-        bool[] TextureLoadTrackerLevel = new bool[LevelTextures.BIN.Header.EntryCount];
-        for (int x = 0; x < LevelTextures.PAK.Header.EntryCount; x++)
+        LoadedTexturesLevel = new AlienTexture[LevelTextures.Header.EntryCount];
+        bool[] TextureLoadTrackerLevel = new bool[LevelTextures.Header.EntryCount];
+        for (int x = 0; x < LevelTextures.Header.EntryCount; x++)
         {
-            int binIndex = LevelTextures.PAK.Entries[x].BINIndex;
+            int binIndex = LevelTextures.entryHeaders[x].BINIndex;
             LoadedTexturesLevel[binIndex] = LoadTexture(x, !TextureLoadTrackerLevel[binIndex]);
             TextureLoadTrackerLevel[binIndex] = true;
         }
@@ -33,7 +33,7 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
         int i = 0;
         foreach (LoadedTextureUI app in appGrid.transform.GetComponentsInChildren<LoadedTextureUI>(true))
         {
-            app.Setup(LoadedTexturesLevel[i], LevelTextures.BIN.TextureFilePaths[i]);
+            app.Setup(LoadedTexturesLevel[i], LevelTextures.TextureFilePaths[i]);
             i++;
         }
         //scrollRect.normalizedPosition = new Vector2(0, 1);
@@ -43,14 +43,14 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
     {
         AlienTexture toReturn = new AlienTexture();
 
-        if (EntryIndex < 0 || EntryIndex >= LevelTextures.PAK.Header.EntryCount)
+        if (EntryIndex < 0 || EntryIndex >= LevelTextures.Header.EntryCount)
         {
             Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
             return null;
         }
 
-        alien_pak_entry Entry = LevelTextures.PAK.Entries[EntryIndex];
-        alien_texture_bin_texture InTexture = LevelTextures.BIN.Textures[Entry.BINIndex];
+        GenericPAKEntry Entry = LevelTextures.entryHeaders[EntryIndex];
+        TextureEntry InTexture = LevelTextures.Textures[Entry.BINIndex];
 
         Vector2 textureDims;
         int textureLength = 0;
@@ -78,48 +78,48 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
         UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
         switch (InTexture.Format)
         {
-            case alien_texture_format.Alien_R32G32B32A32_SFLOAT:
+            case CATHODE.LEGACY.TextureFormat.R32G32B32A32_SFLOAT:
                 format = UnityEngine.TextureFormat.RGBA32;
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM:
+            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM:
                 format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM_0:
+            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM_0:
                 format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                 break;
-            case alien_texture_format.Alien_FORMAT_SIGNED_DISTANCE_FIELD:
+            case CATHODE.LEGACY.TextureFormat.SIGNED_DISTANCE_FIELD:
                 Debug.LogWarning("SDF! NOT LOADED");
                 return toReturn;
-            case alien_texture_format.Alien_FORMAT_R8:
+            case CATHODE.LEGACY.TextureFormat.R8:
                 format = UnityEngine.TextureFormat.R8;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC1:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC1:
                 format = UnityEngine.TextureFormat.DXT1;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC2:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC2:
                 Debug.LogWarning("BC2! NOT LOADED");
                 return toReturn;
-            case alien_texture_format.Alien_FORMAT_BC5:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC5:
                 format = UnityEngine.TextureFormat.BC5; //Is this correct?
                 break;
-            case alien_texture_format.Alien_FORMAT_BC3:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC3:
                 format = UnityEngine.TextureFormat.DXT5;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC7:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC7:
                 format = UnityEngine.TextureFormat.BC7;
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8:
+            case CATHODE.LEGACY.TextureFormat.R8G8:
                 format = UnityEngine.TextureFormat.BC5; // is this correct?
                 break;
         }
 
-        BinaryReader tempReader = new BinaryReader(new MemoryStream(LevelTextures.PAK.DataStart));
+        BinaryReader tempReader = new BinaryReader(new MemoryStream(LevelTextures.dataStart));
         tempReader.BaseStream.Position = Entry.Offset;
 
         if (InTexture.Type == 7)
         {
             Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
-            cubemapTex.name = LevelTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            cubemapTex.name = LevelTextures.TextureFilePaths[Entry.BINIndex];
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
@@ -133,7 +133,7 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
         else
         {
             Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-            texture.name = LevelTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            texture.name = LevelTextures.TextureFilePaths[Entry.BINIndex];
             texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
             texture.Apply();
             toReturn.texture = texture;
