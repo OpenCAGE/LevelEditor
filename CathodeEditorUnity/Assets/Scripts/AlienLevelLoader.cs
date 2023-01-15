@@ -87,7 +87,7 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < Result.ModelsMTL._materials.Length; i++) LoadMaterial(i);
 
         //Load all models
-        LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
+        LoadedModels = new GameObjectHolder[Result.ModelsPAK.modelBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
@@ -132,14 +132,14 @@ public class AlienLevelLoader : MonoBehaviour
 
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
-        if (binIndex >= Result.ModelsBIN.Header.ModelCount)
+        if (binIndex >= Result.ModelsPAK.modelBIN.Header.ModelCount)
         {
             Debug.LogWarning("binIndex out of range!");
             return;
         }
         if (LoadedModels[binIndex] == null)
         {
-            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsBIN.ModelFilePaths[binIndex] + "). Skipping!");
+            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "). Skipping!");
             return;
         }
         GameObject newModelSpawn = new GameObject();
@@ -272,11 +272,11 @@ public class AlienLevelLoader : MonoBehaviour
         for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
         {
             int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
-            CathodeModels.alien_model_bin_model_info Model = Result.ModelsBIN.Models[BINIndex];
+            CathodeModels.alien_model_bin_model_info Model = Result.ModelsPAK.modelBIN.Models[BINIndex];
             //if (Model.BlockSize == 0) continue;
 
-            CathodeModels.alien_vertex_buffer_format VertexInput = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
-            CathodeModels.alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
+            CathodeModels.alien_vertex_buffer_format VertexInput = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndex];
+            CathodeModels.alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
 
             BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
 
@@ -450,7 +450,7 @@ public class AlienLevelLoader : MonoBehaviour
             if (InVertices.Count == 0) continue;
 
             Mesh thisMesh = new Mesh();
-            thisMesh.name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex];
+            thisMesh.name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex];
             thisMesh.SetVertices(InVertices);
             thisMesh.SetNormals(InNormals);
             thisMesh.SetIndices(InIndices, MeshTopology.Triangles, 0); //0??
@@ -467,7 +467,7 @@ public class AlienLevelLoader : MonoBehaviour
 
             GameObjectHolder ThisModelPart = new GameObjectHolder();
             ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
-            ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL._materialNames[Model.MaterialLibraryIndex] + ")";
+            ThisModelPart.Name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL._materialNames[Model.MaterialLibraryIndex] + ")";
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.DefaultMaterial = Model.MaterialLibraryIndex;
             LoadedModels[BINIndex] = ThisModelPart;

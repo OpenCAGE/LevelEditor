@@ -16,6 +16,7 @@ public class CacheLevel : MonoBehaviour
 
     void Start()
     {
+#if UNITY_EDITOR
         levelData = AlienLevel.Load(SharedVals.instance.LevelName, SharedVals.instance.PathToEnv);
         levelGO = new GameObject(SharedVals.instance.LevelName);
 
@@ -32,10 +33,12 @@ public class CacheLevel : MonoBehaviour
         }
 
         PrefabUtility.SaveAsPrefabAsset(levelGO, "Assets/Resources/" + SharedVals.instance.LevelName + "/" + SharedVals.instance.LevelName + ".prefab");
+#endif
     }
 
     private void LoadTextureAssets()
     {
+#if UNITY_EDITOR
         bool[] textureTracker = new bool[levelData.LevelTextures.Header.EntryCount];
         AssetDatabase.StartAssetEditing();
         for (int i = 0; i < levelData.LevelTextures.entryHeaders.Length; i++)
@@ -130,10 +133,12 @@ public class CacheLevel : MonoBehaviour
             tempReader.Close();
         }
         AssetDatabase.StopAssetEditing();
+#endif
     }
 
     private void LoadMeshAssets()
     {
+#if UNITY_EDITOR
         AssetDatabase.StartAssetEditing();
         for (int i = 0; i < levelData.ModelsPAK.Models.Count; i++)
         {
@@ -141,11 +146,11 @@ public class CacheLevel : MonoBehaviour
             for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
             {
                 int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
-                alien_model_bin_model_info Model = levelData.ModelsBIN.Models[BINIndex];
+                alien_model_bin_model_info Model = levelData.ModelsPAK.modelBIN.Models[BINIndex];
                 //if (Model.BlockSize == 0) continue;
 
-                alien_vertex_buffer_format VertexInput = levelData.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
-                alien_vertex_buffer_format VertexInputLowDetail = levelData.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
+                alien_vertex_buffer_format VertexInput = levelData.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndex];
+                alien_vertex_buffer_format VertexInputLowDetail = levelData.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
 
                 BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
 
@@ -319,7 +324,7 @@ public class CacheLevel : MonoBehaviour
                 if (InVertices.Count == 0) continue;
 
                 Mesh thisMesh = new Mesh();
-                thisMesh.name = levelData.ModelsBIN.ModelFilePaths[BINIndex] + ": " + levelData.ModelsBIN.ModelLODPartNames[BINIndex];
+                thisMesh.name = levelData.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + levelData.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex];
                 thisMesh.SetVertices(InVertices);
                 thisMesh.SetNormals(InNormals);
                 thisMesh.SetIndices(InIndices, MeshTopology.Triangles, 0); //0??
@@ -335,13 +340,14 @@ public class CacheLevel : MonoBehaviour
                 thisMesh.RecalculateTangents();
 
                 //TODO: do this as proper submeshes
-                string fullFilePath = "Assets/Resources/" + SharedVals.instance.LevelName + "/Meshes/" + levelData.ModelsBIN.ModelFilePaths[BINIndex] + "_" + levelData.ModelsBIN.ModelLODPartNames[BINIndex] + "_" + ChunkIndex + ".asset";
+                string fullFilePath = "Assets/Resources/" + SharedVals.instance.LevelName + "/Meshes/" + levelData.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + "_" + levelData.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex] + "_" + ChunkIndex + ".asset";
                 string fileDirectory = GetDirectory(fullFilePath);
                 if (!Directory.Exists(fileDirectory)) Directory.CreateDirectory(fileDirectory);
                 AssetDatabase.CreateAsset(thisMesh, fullFilePath);
             }
         }
         AssetDatabase.StopAssetEditing();
+#endif
     }
 
     private void LoadMaterialAssets()
@@ -435,7 +441,7 @@ public class CacheLevel : MonoBehaviour
                                     string meshResourcePath = GetMeshAssetPath(thisIndex, true) + "_" + p;
                                     GameObject newSubmesh = new GameObject(meshResourcePath);
                                     newSubmesh.transform.parent = nodeGO.transform;
-                                    newSubmesh.transform.localScale = new Vector3(1, 1, 1) * levelData.ModelsBIN.Models[thisIndex].ScaleFactor;
+                                    newSubmesh.transform.localScale = new Vector3(1, 1, 1) * levelData.ModelsPAK.modelBIN.Models[thisIndex].ScaleFactor;
                                     newSubmesh.transform.localPosition = Vector3.zero;
                                     newSubmesh.transform.localRotation = Quaternion.identity;
                                     newSubmesh.AddComponent<MeshFilter>().sharedMesh = Resources.Load<Mesh>(GetMeshAssetPath(thisIndex, true) + "_" + p);
@@ -456,7 +462,7 @@ public class CacheLevel : MonoBehaviour
 
     private string GetMeshAssetPath(int binIndex, bool resourcePath = false)
     {
-        string basePath = SharedVals.instance.LevelName + "/Meshes/" + levelData.ModelsBIN.ModelFilePaths[binIndex] + "_" + levelData.ModelsBIN.ModelLODPartNames[binIndex];
+        string basePath = SharedVals.instance.LevelName + "/Meshes/" + levelData.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "_" + levelData.ModelsPAK.modelBIN.ModelLODPartNames[binIndex];
         if (resourcePath) return basePath;
         else return "Assets/Resources/" + basePath + ".asset";
     }

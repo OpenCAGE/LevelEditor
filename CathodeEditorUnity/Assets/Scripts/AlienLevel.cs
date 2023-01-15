@@ -83,7 +83,6 @@ public class alien_level
     public byte[] ModelsCST;
     public MaterialDatabase ModelsMTL;
     public CathodeModels ModelsPAK;
-    public alien_model_bin ModelsBIN;
     public CathodeTextures LevelTextures;
     public ShadersPAK ShadersPAK;
     public alien_shader_bin_pak ShadersBIN;
