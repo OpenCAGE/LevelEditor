@@ -2,23 +2,23 @@
 using System.Collections;
 using System.IO;
 using SimpleFileBrowser;
-using CATHODE.Textures;
 using System.Collections.Generic;
+using CATHODE.LEGACY;
 
 public class FiileBrowserTest : MonoBehaviour
 {
 	// Warning: paths returned by FileBrowser dialogs do not contain a trailing '\' character
 	// Warning: FileBrowser can only show 1 dialog at a time
 
-	alien_textures LevelTextures;
+	CathodeTextures LevelTextures;
 	string levelName = "BSP_TORRENS";
 
 	void Start()
 	{
 		string levelPath = @"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\" + levelName + "\\";
-		LevelTextures = TexturePAK.Load(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
+		LevelTextures = new CathodeTextures(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK", levelPath + "/RENDERABLE/LEVEL_TEXTURE_HEADERS.ALL.BIN");
 
-		FileBrowserHelpers.SetupFilepaths(new List<string>(LevelTextures.BIN.TextureFilePaths));
+		FileBrowserHelpers.SetupFilepaths(new List<string>(LevelTextures.TextureFilePaths));
 
 		//FileBrowser.SetFilters(true, new FileBrowser.Filter("Images", ".jpg", ".png"), new FileBrowser.Filter("Text Files", ".txt", ".pdf"));
 		//FileBrowser.SetDefaultFilter(".jpg");

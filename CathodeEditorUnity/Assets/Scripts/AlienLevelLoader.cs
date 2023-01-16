@@ -3,6 +3,9 @@ using UnityEngine;
 using CATHODE;
 using System.IO;
 using System;
+using CathodeLib;
+using CATHODE.LEGACY;
+using static CATHODE.LEGACY.ShadersPAK;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -17,7 +20,7 @@ public class AlienLevelLoader : MonoBehaviour
     public GameObject CurrentLevelGameObject { get { return levelParent; } }
 
     private alien_level Result = null;
-    private alien_textures GlobalTextures;
+    private CathodeTextures GlobalTextures;
 
     private GameObject levelParent = null;
 
@@ -41,7 +44,7 @@ public class AlienLevelLoader : MonoBehaviour
         */
 
         //Load global assets
-        GlobalTextures = CATHODE.Textures.TexturePAK.Load(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
@@ -59,47 +62,47 @@ public class AlienLevelLoader : MonoBehaviour
         if (levelParent != null) Destroy(levelParent);
 
         //Load level assets
-        Result = CATHODE.AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
+        Result = AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
-        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.BIN.Header.EntryCount];
-        LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.BIN.Header.EntryCount];
-        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.BIN.Header.EntryCount];
-        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.BIN.Header.EntryCount];
-        for (int i = 0; i < GlobalTextures.PAK.Header.EntryCount; i++)
+        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.entryContents.Count];
+        LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.entryContents.Count];
+        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.entryContents.Count];
+        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.entryContents.Count];
+        for (int i = 0; i < GlobalTextures.entryContents.Count; i++)
         {
-            int binIndex = GlobalTextures.PAK.Entries[i].BINIndex;
+            int binIndex = GlobalTextures.entryHeaders[i].BINIndex;
             LoadedTexturesGlobal[binIndex] = LoadTexture(i, 2, !TextureLoadTrackerGlobal[binIndex]);
             TextureLoadTrackerGlobal[binIndex] = true;
         }
-        for (int i = 0; i < Result.LevelTextures.PAK.Header.EntryCount; i++)
+        for (int i = 0; i < Result.LevelTextures.entryContents.Count; i++)
         {
-            int binIndex = Result.LevelTextures.PAK.Entries[i].BINIndex;
+            int binIndex = Result.LevelTextures.entryHeaders[i].BINIndex;
             LoadedTexturesLevel[binIndex] = LoadTexture(i, 0, !TextureLoadTrackerLevel[binIndex]);
             TextureLoadTrackerLevel[binIndex] = true;
         }
 
         //Load all materials
-        LoadedMaterials = new Material[Result.ModelsMTL.Header.MaterialCount];
-        for (int i = 0; i < Result.ModelsMTL.Header.MaterialCount; i++) LoadMaterial(i);
+        LoadedMaterials = new Material[Result.ModelsMTL._materials.Length];
+        for (int i = 0; i < Result.ModelsMTL._materials.Length; i++) LoadMaterial(i);
 
         //Load all models
-        LoadedModels = new GameObjectHolder[Result.ModelsBIN.Header.ModelCount];
+        LoadedModels = new GameObjectHolder[Result.ModelsPAK.modelBIN.Header.ModelCount];
         for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
         levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Movers.Count; i++)
         {
-            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Movers[i].REDSIndex + "/" + Result.ModelsMVR.Movers[i].ModelCount);
-            Matrix4x4 m = Result.ModelsMVR.Movers[i].Transform;
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Movers[i].renderableElementIndex + "/" + Result.ModelsMVR.Movers[i].renderableElementCount);
+            Matrix4x4 m = Result.ModelsMVR.Movers[i].transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
             thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
             thisParent.transform.parent = levelParent.transform;
-            for (int x = 0; x < Result.ModelsMVR.Movers[i].ModelCount; x++)
+            for (int x = 0; x < Result.ModelsMVR.Movers[i].renderableElementCount; x++)
             {
-                CATHODE.Misc.alien_reds_entry RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Movers[i].REDSIndex + x];
+                RenderableElementsDatabase.RenderableElement RenderableElement = Result.RenderableREDS.RenderableElements[(int)Result.ModelsMVR.Movers[i].renderableElementIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
             }
         }
@@ -119,8 +122,8 @@ public class AlienLevelLoader : MonoBehaviour
             GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
             if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
-            CATHODE.Models.alien_mvr_entry thisEntry = Result.ModelsMVR.Movers[i];
-            thisEntry.Transform = mvrEntry.transform.localToWorldMatrix;
+            MoverDatabase.MOVER_DESCRIPTOR thisEntry = Result.ModelsMVR.Movers[i];
+            thisEntry.transform = mvrEntry.transform.localToWorldMatrix;
             Result.ModelsMVR.Movers[i] = thisEntry;
         }
 
@@ -129,14 +132,14 @@ public class AlienLevelLoader : MonoBehaviour
 
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
-        if (binIndex >= Result.ModelsBIN.Header.ModelCount)
+        if (binIndex >= Result.ModelsPAK.modelBIN.Header.ModelCount)
         {
             Debug.LogWarning("binIndex out of range!");
             return;
         }
         if (LoadedModels[binIndex] == null)
         {
-            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsBIN.ModelFilePaths[binIndex] + "). Skipping!");
+            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "). Skipping!");
             return;
         }
         GameObject newModelSpawn = new GameObject();
@@ -155,15 +158,15 @@ public class AlienLevelLoader : MonoBehaviour
     {
         AlienTexture toReturn = new AlienTexture();
 
-        alien_textures AlienTextures = GetTexturesTable(paktype); 
-        if (EntryIndex < 0 || EntryIndex >= AlienTextures.PAK.Header.EntryCount)
+        CathodeTextures AlienTextures = GetTexturesTable(paktype); 
+        if (EntryIndex < 0 || EntryIndex >= AlienTextures.entryContents.Count)
         {
             Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
             return null;
         }
 
-        alien_pak_entry Entry = AlienTextures.PAK.Entries[EntryIndex];
-        alien_texture_bin_texture InTexture = AlienTextures.BIN.Textures[Entry.BINIndex];
+        GenericPAKEntry Entry = AlienTextures.entryHeaders[EntryIndex];
+        TextureEntry InTexture = AlienTextures.Textures[Entry.BINIndex];
 
         Vector2 textureDims;
         int textureLength = 0;
@@ -191,48 +194,48 @@ public class AlienLevelLoader : MonoBehaviour
         UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
         switch (InTexture.Format)
         {
-            case alien_texture_format.Alien_R32G32B32A32_SFLOAT:
+            case CATHODE.LEGACY.TextureFormat.R32G32B32A32_SFLOAT:
                 format = UnityEngine.TextureFormat.RGBA32;
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM:
+            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM:
                 format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8B8A8_UNORM_0:
+            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM_0:
                 format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
                 break;
-            case alien_texture_format.Alien_FORMAT_SIGNED_DISTANCE_FIELD:
+            case CATHODE.LEGACY.TextureFormat.SIGNED_DISTANCE_FIELD:
                 Debug.LogWarning("SDF! NOT LOADED");
                 return toReturn;
-            case alien_texture_format.Alien_FORMAT_R8:
+            case CATHODE.LEGACY.TextureFormat.R8:
                 format = UnityEngine.TextureFormat.R8;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC1:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC1:
                 format = UnityEngine.TextureFormat.DXT1;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC2:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC2:
                 Debug.LogWarning("BC2! NOT LOADED");
                 return toReturn;
-            case alien_texture_format.Alien_FORMAT_BC5:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC5:
                 format = UnityEngine.TextureFormat.BC5; //Is this correct?
                 break;
-            case alien_texture_format.Alien_FORMAT_BC3:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC3:
                 format = UnityEngine.TextureFormat.DXT5;
                 break;
-            case alien_texture_format.Alien_FORMAT_BC7:
+            case CATHODE.LEGACY.TextureFormat.DDS_BC7:
                 format = UnityEngine.TextureFormat.BC7;
                 break;
-            case alien_texture_format.Alien_FORMAT_R8G8:
+            case CATHODE.LEGACY.TextureFormat.R8G8:
                 format = UnityEngine.TextureFormat.BC5; // is this correct?
                 break;
         }
 
-        BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.PAK.DataStart));
+        BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.dataStart));
         tempReader.BaseStream.Position = Entry.Offset;
 
         if (InTexture.Type == 7)
         {
             Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
-            cubemapTex.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            cubemapTex.name = AlienTextures.TextureFilePaths[Entry.BINIndex];
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
             cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
@@ -246,7 +249,7 @@ public class AlienLevelLoader : MonoBehaviour
         else
         {
             Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-            texture.name = AlienTextures.BIN.TextureFilePaths[Entry.BINIndex];
+            texture.name = AlienTextures.TextureFilePaths[Entry.BINIndex];
             texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
             texture.Apply();
             toReturn.texture = texture;
@@ -265,21 +268,21 @@ public class AlienLevelLoader : MonoBehaviour
             return;
         }
 
-        alien_pak_model_entry ChunkArray = Result.ModelsPAK.Models[EntryIndex];
-        for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.ChunkCount; ++ChunkIndex)
+        CathodeModels.ModelData ChunkArray = Result.ModelsPAK.Models[EntryIndex];
+        for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
         {
-            int BINIndex = ChunkArray.ChunkInfos[ChunkIndex].BINIndex;
-            alien_model_bin_model_info Model = Result.ModelsBIN.Models[BINIndex];
+            int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
+            CathodeModels.alien_model_bin_model_info Model = Result.ModelsPAK.modelBIN.Models[BINIndex];
             //if (Model.BlockSize == 0) continue;
 
-            alien_vertex_buffer_format VertexInput = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndex];
-            alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
+            CathodeModels.alien_vertex_buffer_format VertexInput = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndex];
+            CathodeModels.alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
 
-            BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Chunks[ChunkIndex]));
+            BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
 
-            List<List<alien_vertex_buffer_format_element>> Elements = new List<List<alien_vertex_buffer_format_element>>();
-            alien_vertex_buffer_format_element ElementHeader = new alien_vertex_buffer_format_element();
-            foreach (alien_vertex_buffer_format_element Element in VertexInput.Elements)
+            List<List<CathodeModels.alien_vertex_buffer_format_element>> Elements = new List<List<CathodeModels.alien_vertex_buffer_format_element>>();
+            CathodeModels.alien_vertex_buffer_format_element ElementHeader = new CathodeModels.alien_vertex_buffer_format_element();
+            foreach (CathodeModels.alien_vertex_buffer_format_element Element in VertexInput.Elements)
             {
                 if (Element.ArrayIndex == 0xFF)
                 {
@@ -287,10 +290,10 @@ public class AlienLevelLoader : MonoBehaviour
                     continue;
                 }
 
-                while (Elements.Count - 1 < Element.ArrayIndex) Elements.Add(new List<alien_vertex_buffer_format_element>());
+                while (Elements.Count - 1 < Element.ArrayIndex) Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>());
                 Elements[Element.ArrayIndex].Add(Element);
             }
-            Elements.Add(new List<alien_vertex_buffer_format_element>() { ElementHeader });
+            Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>() { ElementHeader });
 
             List<UInt16> InIndices = new List<UInt16>();
             List<Vector3> InVertices = new List<Vector3>();
@@ -308,7 +311,7 @@ public class AlienLevelLoader : MonoBehaviour
 
             for (int VertexArrayIndex = 0; VertexArrayIndex < Elements.Count; ++VertexArrayIndex)
             {
-                alien_vertex_buffer_format_element Inputs = Elements[VertexArrayIndex][0];
+                CathodeModels.alien_vertex_buffer_format_element Inputs = Elements[VertexArrayIndex][0];
                 if (Inputs.ArrayIndex == 0xFF)
                 {
                     for (int i = 0; i < Model.IndexCount; i++)
@@ -322,62 +325,62 @@ public class AlienLevelLoader : MonoBehaviour
                     {
                         for (int ElementIndex = 0; ElementIndex < Elements[VertexArrayIndex].Count; ++ElementIndex)
                         {
-                            alien_vertex_buffer_format_element Input = Elements[VertexArrayIndex][ElementIndex];
+                            CathodeModels.alien_vertex_buffer_format_element Input = Elements[VertexArrayIndex][ElementIndex];
                             switch (Input.VariableType)
                             {
-                                case alien_vertex_input_type.AlienVertexInputType_v3:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v3:
                                     {
                                         Vector3 Value = new Vector3(Stream.ReadSingle(), Stream.ReadSingle(), Stream.ReadSingle());
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_N:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
                                                 InNormals.Add(Value);
                                                 break;
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_T:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
                                                 InTangents.Add(new Vector4(Value.x, Value.y, Value.z, 0));
                                                 break;
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_UV:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
                                                 //TODO: 3D UVW
                                                 break;
                                         };
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_u32_C:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_u32_C:
                                     {
                                         int Value = Stream.ReadInt32();
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_C:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_C:
                                                 //??
                                                 break;
                                         }
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v4u8_i:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_i:
                                     {
                                         Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_BI:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BI:
                                                 InBoneIndexes.Add(Value);
                                                 break;
                                         }
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v4u8_f:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_f:
                                     {
                                         Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
                                         Value /= 255.0f;
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_BW:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BW:
                                                 float Sum = Value.x + Value.y + Value.z + Value.w;
                                                 InBoneWeights.Add(Value / Sum);
                                                 break;
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_UV:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
                                                 InUVs2.Add(new Vector2(Value.x, Value.y));
                                                 InUVs3.Add(new Vector2(Value.z, Value.w));
                                                 break;
@@ -385,13 +388,13 @@ public class AlienLevelLoader : MonoBehaviour
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v2s16_UV:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v2s16_UV:
                                     {
                                         Vector2 Value = new Vector2(Stream.ReadInt16(), Stream.ReadInt16());
                                         Value /= 2048.0f;
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_UV:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
                                                 if (Input.VariantIndex == 0) InUVs0.Add(Value);
                                                 else if (Input.VariantIndex == 1)
                                                 {
@@ -407,32 +410,32 @@ public class AlienLevelLoader : MonoBehaviour
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v4s16_f:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4s16_f:
                                     {
                                         Vector4 Value = new Vector4(Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16());
                                         Value /= (float)Int16.MaxValue;
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_P:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_P:
                                                 InVertices.Add(Value);
                                                 break;
                                         }
                                         break;
                                     }
 
-                                case alien_vertex_input_type.AlienVertexInputType_v4u8_NTB:
+                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_NTB:
                                     {
                                         Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
                                         Value /= (float)byte.MaxValue - 0.5f;
                                         Value.Normalize();
                                         switch (Input.ShaderSlot)
                                         {
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_N:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
                                                 InNormals.Add(Value);
                                                 break;
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_T:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
                                                 break;
-                                            case alien_vertex_input_slot.AlienVertexInputSlot_B:
+                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_B:
                                                 break;
                                         }
                                     }
@@ -441,13 +444,13 @@ public class AlienLevelLoader : MonoBehaviour
                         }
                     }
                 }
-                CATHODE.Utilities.Align(Stream, 16);
+                CathodeLib.Utilities.Align(Stream, 16);
             }
 
             if (InVertices.Count == 0) continue;
 
             Mesh thisMesh = new Mesh();
-            thisMesh.name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex];
+            thisMesh.name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex];
             thisMesh.SetVertices(InVertices);
             thisMesh.SetNormals(InNormals);
             thisMesh.SetIndices(InIndices, MeshTopology.Triangles, 0); //0??
@@ -464,7 +467,7 @@ public class AlienLevelLoader : MonoBehaviour
 
             GameObjectHolder ThisModelPart = new GameObjectHolder();
             ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
-            ThisModelPart.Name = Result.ModelsBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL.MaterialNames[Model.MaterialLibraryIndex] + ")";
+            ThisModelPart.Name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL._materialNames[Model.MaterialLibraryIndex] + ")";
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.DefaultMaterial = Model.MaterialLibraryIndex;
             LoadedModels[BINIndex] = ThisModelPart;
@@ -473,14 +476,14 @@ public class AlienLevelLoader : MonoBehaviour
 
     private MaterialPropertyIndex GetMaterialPropertyIndex(int MaterialIndex)
     {
-        alien_mtl_material InMaterial = Result.ModelsMTL.Materials[MaterialIndex];
-        alien_shader_pak_shader Shader = Result.ShadersPAK.Shaders[InMaterial.UberShaderIndex];
+        MaterialDatabase.Entry InMaterial = Result.ModelsMTL._materials[MaterialIndex];
+        ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[InMaterial.UberShaderIndex];
 
         MaterialPropertyIndex toReturn = new MaterialPropertyIndex();
 
-        switch ((alien_shader_category)Shader.Header2.ShaderCategory)
+        switch ((ShaderCategory)Shader.Header2.ShaderCategory)
         {
-            case alien_shader_category.AlienShaderCategory_Environment:
+            case ShaderCategory.AlienShaderCategory_Environment:
                 toReturn.OpacityUVMultiplierIndex = 5;
                 toReturn.DiffuseUVMultiplierIndex = 6;
                 toReturn.DiffuseIndex = 7;
@@ -495,7 +498,7 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.DirtMapUVMultiplierIndex = 48;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Character:
+            case ShaderCategory.AlienShaderCategory_Character:
                 toReturn.OpacityNoiseUVMultiplierIndex = 12;
                 toReturn.DiffuseUVMultiplierIndex = 15;
                 toReturn.DiffuseIndex = 16;
@@ -507,7 +510,7 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.SpecularFactorIndex = 25;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Skin:
+            case ShaderCategory.AlienShaderCategory_Skin:
                 toReturn.DiffuseUVMultiplierIndex = 4;
                 toReturn.DiffuseIndex = 5;
                 toReturn.NormalUVMultiplierIndex = 8;
@@ -515,11 +518,11 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.SecondaryNormalUVMultiplierIndex = 11;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Hair:
+            case ShaderCategory.AlienShaderCategory_Hair:
                 toReturn.DiffuseIndex = 2;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Eye:
+            case ShaderCategory.AlienShaderCategory_Eye:
                 toReturn.DiffuseUVAdderIndex = 3;
                 // TODO: These three determine the iris color. They map to rgb channels of the iris map.
                 //  I am using the middle color for now for everything but we should not do that.
@@ -532,25 +535,25 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.DiffuseSamplerIndex = 0;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Decal:
+            case ShaderCategory.AlienShaderCategory_Decal:
                 //toReturn.ColorIndex = 3;
                 //Material->BaseColor = {};
                 break;
 
-            case alien_shader_category.AlienShaderCategory_FogPlane:
+            case ShaderCategory.AlienShaderCategory_FogPlane:
                 //toReturn.DiffuseIndex = 8;
                 //Material.BaseColor = { };
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Terrain:
+            case ShaderCategory.AlienShaderCategory_Terrain:
                 toReturn.DiffuseIndex = 4;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_LightMapEnvironment:
+            case ShaderCategory.AlienShaderCategory_LightMapEnvironment:
                 toReturn.DiffuseIndex = 12;
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Refraction:
+            case ShaderCategory.AlienShaderCategory_Refraction:
                 toReturn.DiffuseUVMultiplierIndex = 3;
                 break;
         }
@@ -560,30 +563,30 @@ public class AlienLevelLoader : MonoBehaviour
 
     public void LoadMaterial(int MTLIndex)
     {
-        alien_mtl_material InMaterial = Result.ModelsMTL.Materials[MTLIndex];
+        MaterialDatabase.Entry InMaterial = Result.ModelsMTL._materials[MTLIndex];
         int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
-        alien_shader_pak_shader Shader = Result.ShadersPAK.Shaders[RemappedIndex];
+        ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[RemappedIndex];
 
         Material toReturn = new Material(UnityEngine.Shader.Find("Standard"));
-        toReturn.name = Result.ModelsMTL.MaterialNames[MTLIndex];
+        toReturn.name = Result.ModelsMTL._materialNames[MTLIndex];
 
         List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
-        alien_shader_category ShaderCategory = (alien_shader_category)Shader.Header2.ShaderCategory;
+        ShaderCategory ShaderCategory = (ShaderCategory)Shader.Header2.ShaderCategory;
 
         switch (ShaderCategory)
         {
-            case alien_shader_category.AlienShaderCategory_Particle:
+            case ShaderCategory.AlienShaderCategory_Particle:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Ribbon:
+            case ShaderCategory.AlienShaderCategory_Ribbon:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Environment:
+            case ShaderCategory.AlienShaderCategory_Environment:
                 SlotOffsets.Add(alien_slot_ids.OPACITY);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
@@ -602,7 +605,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_DecalEnvironment:
+            case ShaderCategory.AlienShaderCategory_DecalEnvironment:
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -622,7 +625,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Character:
+            case ShaderCategory.AlienShaderCategory_Character:
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
                 SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
                 SlotOffsets.Add(alien_slot_ids.OPACITY);
@@ -638,7 +641,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Skin:
+            case ShaderCategory.AlienShaderCategory_Skin:
                 SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
@@ -654,7 +657,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Hair:
+            case ShaderCategory.AlienShaderCategory_Hair:
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -663,7 +666,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Eye:
+            case ShaderCategory.AlienShaderCategory_Eye:
                 SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
@@ -673,11 +676,11 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_SkinOcclusion:
+            case ShaderCategory.AlienShaderCategory_SkinOcclusion:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Decal:
+            case ShaderCategory.AlienShaderCategory_Decal:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
@@ -692,7 +695,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_FogPlane:
+            case ShaderCategory.AlienShaderCategory_FogPlane:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 // TODO: Should be 'DiffuseMapStatic' - but I am not using that yet.  In order to keep the light cones
@@ -700,7 +703,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_STATIC);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Refraction:
+            case ShaderCategory.AlienShaderCategory_Refraction:
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
@@ -709,14 +712,14 @@ public class AlienLevelLoader : MonoBehaviour
                 //Material->Material.BaseColor = { };
                 break;
 
-            case alien_shader_category.AlienShaderCategory_NonInteractiveWater:
+            case ShaderCategory.AlienShaderCategory_NonInteractiveWater:
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_LowLODCharacter:
+            case ShaderCategory.AlienShaderCategory_LowLODCharacter:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
@@ -725,11 +728,11 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_LightDecal:
+            case ShaderCategory.AlienShaderCategory_LightDecal:
                 SlotOffsets.Add(alien_slot_ids.EMISSIVE);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_SpaceSuitVisor:
+            case ShaderCategory.AlienShaderCategory_SpaceSuitVisor:
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
@@ -739,7 +742,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Planet:
+            case ShaderCategory.AlienShaderCategory_Planet:
                 SlotOffsets.Add(alien_slot_ids.ATMOSPHERE_MAP);
                 SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -748,7 +751,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_LightMapEnvironment:
+            case ShaderCategory.AlienShaderCategory_LightMapEnvironment:
                 SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
@@ -768,7 +771,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 break;
 
-            case alien_shader_category.AlienShaderCategory_Terrain:
+            case ShaderCategory.AlienShaderCategory_Terrain:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
@@ -796,9 +799,9 @@ public class AlienLevelLoader : MonoBehaviour
         {
             int PairIndex = Shader.TextureLinks[SlotIndex];
             // NOTE: PairIndex == 255 means no index.
-            if (PairIndex < Result.ModelsMTL.TextureReferenceCounts[MTLIndex])
+            if (PairIndex < Result.ModelsMTL._textureReferenceCounts[MTLIndex])
             {
-                alien_mtl_texture_reference Pair = InMaterial.TextureReferences[PairIndex];
+                MaterialDatabase.TextureReference Pair = InMaterial.TextureReferences[PairIndex];
                 if (Pair.TextureTableIndex == 0) availableTextures.Add(LoadedTexturesLevel[Pair.TextureIndex].texture);
                 else if (Pair.TextureTableIndex == 2) availableTextures.Add(LoadedTexturesGlobal[Pair.TextureIndex].texture);
                 else availableTextures.Add(null);
@@ -849,7 +852,7 @@ public class AlienLevelLoader : MonoBehaviour
         //Apply properties
         MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
         BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsCST));
-        int baseOffset = Result.ModelsMTL.Header.CSTOffsets[2] + (InMaterial.CSTOffsets[2] * 4);
+        int baseOffset = Result.ModelsMTL._header.CSTOffsets[2] + (InMaterial.CSTOffsets[2] * 4);
         if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
         {
             Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
@@ -902,12 +905,12 @@ public class AlienLevelLoader : MonoBehaviour
         cstReader.BaseStream.Position = offset;
         return Utilities.Consume<T>(cstReader);
     }
-    private bool CSTIndexValid(int i, ref alien_shader_pak_shader Shader)
+    private bool CSTIndexValid(int i, ref ShadersPAK.ShaderEntry Shader)
     {
         return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
     }
 
-    public alien_textures GetTexturesTable(int TableIndex)
+    public CathodeTextures GetTexturesTable(int TableIndex)
     {
         if (TableIndex == 0) return Result.LevelTextures;
         if (TableIndex == 2) return GlobalTextures;
