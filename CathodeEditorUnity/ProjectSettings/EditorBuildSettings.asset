@@ -18,6 +18,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Loadscreen.unity
     guid: 28c1a44a8339e30469fac4a1b39e40f5
   - enabled: 0
-    path: Assets/Scenes/LevelLoader.unity
+    path: Assets/ModelTester.unity
     guid: 9fc0d4010bbf28b4594072e72b8655ab
   m_configObjects: {}
