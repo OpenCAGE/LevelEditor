@@ -6,6 +6,7 @@ using System;
 using CathodeLib;
 using CATHODE.LEGACY;
 using static CATHODE.LEGACY.ShadersPAK;
+using static CATHODE.Models;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -29,8 +30,36 @@ public class AlienLevelLoader : MonoBehaviour
     private GameObjectHolder[] LoadedModels;
     private Material[] LoadedMaterials;
 
-    void Start()
+    int i = 0;
+    GameObject modelGO = null;
+    Models mdls = null;
+    private void Start()
     {
+        mdls = new Models("G:\\SteamLibrary\\steamapps\\common\\Alien Isolation\\DATA\\ENV\\PRODUCTION\\SOLACE\\RENDERABLE\\LEVEL_MODELS.PAK");
+    }
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.B))
+        {
+            if (modelGO != null)
+                Destroy(modelGO);
+
+            CS2 model = mdls.Entries[i];
+            modelGO = new GameObject(model.Name);
+            for (int x = 0; x < model.Submeshes.Count; ++x)
+            {
+                GameObject submeshGO = new GameObject();
+                submeshGO.transform.parent = modelGO.transform;
+                submeshGO.name = model.Submeshes[x].Name;
+                submeshGO.AddComponent<MeshFilter>().mesh = mdls.GetMesh(model.Submeshes[x]);
+                submeshGO.AddComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+            }
+            i++;
+        }
+    }
+
+  //  void Start()
+  //  {
         /*
         CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_HUB\WORLD\MODELS.MVR");
         for (int i =0; i < mvr.EntryCount; i++)
@@ -44,7 +73,7 @@ public class AlienLevelLoader : MonoBehaviour
         */
 
         //Load global assets
-        GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+  //      GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
@@ -54,7 +83,7 @@ public class AlienLevelLoader : MonoBehaviour
 
 
         //LoadLevel(SharedVals.instance.LevelName);
-    }
+ //   }
 
     public void LoadLevel(string level)
     {
@@ -87,8 +116,8 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < Result.ModelsMTL._materials.Length; i++) LoadMaterial(i);
 
         //Load all models
-        LoadedModels = new GameObjectHolder[Result.ModelsPAK.modelBIN.Header.ModelCount];
-        for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
+        LoadedModels = new GameObjectHolder[Result.ModelsPAK.SubmeshCount];
+        for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
         levelParent = new GameObject(LEVEL_NAME);
@@ -132,14 +161,14 @@ public class AlienLevelLoader : MonoBehaviour
 
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
-        if (binIndex >= Result.ModelsPAK.modelBIN.Header.ModelCount)
+        //if (binIndex >= Result.ModelsPAK.modelBIN.Header.ModelCount)
         {
-            Debug.LogWarning("binIndex out of range!");
-            return;
+           // Debug.LogWarning("binIndex out of range!");
+            //return;
         }
         if (LoadedModels[binIndex] == null)
         {
-            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "). Skipping!");
+            //Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "). Skipping!");
             return;
         }
         GameObject newModelSpawn = new GameObject();
@@ -259,218 +288,28 @@ public class AlienLevelLoader : MonoBehaviour
         return toReturn;
     }
 
+    int temp = 0;
     private void LoadModel(int EntryIndex)
     {
-        if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
+        //if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
         {
-            Debug.LogWarning("Asked to load model at index " + EntryIndex + ", which is out of bounds!");
+            //Debug.LogWarning("Asked to load model at index " + EntryIndex + ", which is out of bounds!");
             //return new GameObject();
-            return;
+            //return;
         }
 
-        CathodeModels.ModelData ChunkArray = Result.ModelsPAK.Models[EntryIndex];
-        for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
+        CS2 ChunkArray = Result.ModelsPAK.Entries[EntryIndex];
+        for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Submeshes.Count; ++ChunkIndex)
         {
-            int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
-            CathodeModels.alien_model_bin_model_info Model = Result.ModelsPAK.modelBIN.Models[BINIndex];
-            //if (Model.BlockSize == 0) continue;
-
-            CathodeModels.alien_vertex_buffer_format VertexInput = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndex];
-            CathodeModels.alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
-
-            BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
-
-            List<List<CathodeModels.alien_vertex_buffer_format_element>> Elements = new List<List<CathodeModels.alien_vertex_buffer_format_element>>();
-            CathodeModels.alien_vertex_buffer_format_element ElementHeader = new CathodeModels.alien_vertex_buffer_format_element();
-            foreach (CathodeModels.alien_vertex_buffer_format_element Element in VertexInput.Elements)
-            {
-                if (Element.ArrayIndex == 0xFF)
-                {
-                    ElementHeader = Element;
-                    continue;
-                }
-
-                while (Elements.Count - 1 < Element.ArrayIndex) Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>());
-                Elements[Element.ArrayIndex].Add(Element);
-            }
-            Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>() { ElementHeader });
-
-            List<UInt16> InIndices = new List<UInt16>();
-            List<Vector3> InVertices = new List<Vector3>();
-            List<Vector3> InNormals = new List<Vector3>();
-            List<Vector4> InTangents = new List<Vector4>();
-            List<Vector2> InUVs0 = new List<Vector2>();
-            List<Vector2> InUVs1 = new List<Vector2>();
-            List<Vector2> InUVs2 = new List<Vector2>();
-            List<Vector2> InUVs3 = new List<Vector2>();
-            List<Vector2> InUVs7 = new List<Vector2>();
-
-            //TODO: implement skeleton lookup for the indexes
-            List<Vector4> InBoneIndexes = new List<Vector4>(); //The indexes of 4 bones that affect each vertex
-            List<Vector4> InBoneWeights = new List<Vector4>(); //The weights for each bone
-
-            for (int VertexArrayIndex = 0; VertexArrayIndex < Elements.Count; ++VertexArrayIndex)
-            {
-                CathodeModels.alien_vertex_buffer_format_element Inputs = Elements[VertexArrayIndex][0];
-                if (Inputs.ArrayIndex == 0xFF)
-                {
-                    for (int i = 0; i < Model.IndexCount; i++)
-                    {
-                        InIndices.Add(Stream.ReadUInt16());
-                    }
-                }
-                else
-                {
-                    for (int VertexIndex = 0; VertexIndex < Model.VertexCount; ++VertexIndex)
-                    {
-                        for (int ElementIndex = 0; ElementIndex < Elements[VertexArrayIndex].Count; ++ElementIndex)
-                        {
-                            CathodeModels.alien_vertex_buffer_format_element Input = Elements[VertexArrayIndex][ElementIndex];
-                            switch (Input.VariableType)
-                            {
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v3:
-                                    {
-                                        Vector3 Value = new Vector3(Stream.ReadSingle(), Stream.ReadSingle(), Stream.ReadSingle());
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(Value);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
-                                                InTangents.Add(new Vector4(Value.x, Value.y, Value.z, 0));
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                //TODO: 3D UVW
-                                                break;
-                                        };
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_u32_C:
-                                    {
-                                        int Value = Stream.ReadInt32();
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_C:
-                                                //??
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_i:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BI:
-                                                InBoneIndexes.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_f:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        Value /= 255.0f;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BW:
-                                                float Sum = Value.x + Value.y + Value.z + Value.w;
-                                                InBoneWeights.Add(Value / Sum);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                InUVs2.Add(new Vector2(Value.x, Value.y));
-                                                InUVs3.Add(new Vector2(Value.z, Value.w));
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v2s16_UV:
-                                    {
-                                        Vector2 Value = new Vector2(Stream.ReadInt16(), Stream.ReadInt16());
-                                        Value /= 2048.0f;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                if (Input.VariantIndex == 0) InUVs0.Add(Value);
-                                                else if (Input.VariantIndex == 1)
-                                                {
-                                                    // TODO: We can figure this out based on alien_vertex_buffer_format_element.
-                                                    //Material->Material.Flags |= Material_HasTexCoord1;
-                                                    InUVs1.Add(Value);
-                                                }
-                                                else if (Input.VariantIndex == 2) InUVs2.Add(Value);
-                                                else if (Input.VariantIndex == 3) InUVs3.Add(Value);
-                                                else if (Input.VariantIndex == 7) InUVs7.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4s16_f:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16());
-                                        Value /= (float)Int16.MaxValue;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_P:
-                                                InVertices.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_NTB:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        Value /= (float)byte.MaxValue - 0.5f;
-                                        Value.Normalize();
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(Value);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_B:
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-                }
-                CathodeLib.Utilities.Align(Stream, 16);
-            }
-
-            if (InVertices.Count == 0) continue;
-
-            Mesh thisMesh = new Mesh();
-            thisMesh.name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex];
-            thisMesh.SetVertices(InVertices);
-            thisMesh.SetNormals(InNormals);
-            thisMesh.SetIndices(InIndices, MeshTopology.Triangles, 0); //0??
-            thisMesh.SetTangents(InTangents);
-            thisMesh.SetUVs(0, InUVs0);
-            thisMesh.SetUVs(1, InUVs1);
-            thisMesh.SetUVs(2, InUVs2);
-            thisMesh.SetUVs(3, InUVs3);
-            thisMesh.SetUVs(7, InUVs7);
-            //thisMesh.SetBoneWeights(InBoneWeights.ToArray());
-            thisMesh.RecalculateBounds();
-            thisMesh.RecalculateNormals();
-            thisMesh.RecalculateTangents();
-
+            temp++;
+            CS2_submesh Model = ChunkArray.Submeshes[ChunkIndex];
+            Mesh thisMesh = Result.ModelsPAK.GetMesh(Model);
             GameObjectHolder ThisModelPart = new GameObjectHolder();
             ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
-            ThisModelPart.Name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL._materialNames[Model.MaterialLibraryIndex] + ")";
+            ThisModelPart.Name = Model.Name;
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.DefaultMaterial = Model.MaterialLibraryIndex;
-            LoadedModels[BINIndex] = ThisModelPart;
+            LoadedModels[temp - 1] = ThisModelPart;
         }
     }
 

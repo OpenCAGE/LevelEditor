@@ -55,7 +55,7 @@ namespace CathodeLib
 
             Result.ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
             Result.ModelsMTL = new MaterialDatabase(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
-            Result.ModelsPAK = new CathodeModels(levelPath + "/RENDERABLE/MODELS_LEVEL.BIN", levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
+            Result.ModelsPAK = new Models(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
             Result.ShadersPAK = new ShadersPAK(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
             //Result.ShadersBIN = CATHODE.Shaders.ShadersBIN.Load(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_BIN.PAK");
             Result.ShadersIDXRemap = new IDXRemap(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
@@ -82,7 +82,7 @@ public class alien_level
     public EnvironmentAnimationDatabase EnvironmentAnimation;
     public byte[] ModelsCST;
     public MaterialDatabase ModelsMTL;
-    public CathodeModels ModelsPAK;
+    public Models ModelsPAK;
     public CathodeTextures LevelTextures;
     public ShadersPAK ShadersPAK;
     public alien_shader_bin_pak ShadersBIN;
