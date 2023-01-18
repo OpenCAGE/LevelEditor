@@ -30,6 +30,7 @@ public class AlienLevelLoader : MonoBehaviour
     private GameObjectHolder[] LoadedModels;
     private Material[] LoadedMaterials;
 
+    /*
     int i = 0;
     GameObject modelGO = null;
     Models mdls = null;
@@ -57,9 +58,9 @@ public class AlienLevelLoader : MonoBehaviour
             i++;
         }
     }
-
-  //  void Start()
-  //  {
+    */
+    void Start()
+   {
         /*
         CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_HUB\WORLD\MODELS.MVR");
         for (int i =0; i < mvr.EntryCount; i++)
@@ -73,7 +74,7 @@ public class AlienLevelLoader : MonoBehaviour
         */
 
         //Load global assets
-  //      GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+       GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
@@ -83,7 +84,7 @@ public class AlienLevelLoader : MonoBehaviour
 
 
         //LoadLevel(SharedVals.instance.LevelName);
- //   }
+    }
 
     public void LoadLevel(string level)
     {
@@ -303,7 +304,12 @@ public class AlienLevelLoader : MonoBehaviour
         {
             temp++;
             CS2_submesh Model = ChunkArray.Submeshes[ChunkIndex];
-            Mesh thisMesh = Result.ModelsPAK.GetMesh(Model);
+            Mesh thisMesh = new Mesh();
+            try
+            {
+                thisMesh = Result.ModelsPAK.GetMesh(Model);
+            }
+            catch { }
             GameObjectHolder ThisModelPart = new GameObjectHolder();
             ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
             ThisModelPart.Name = Model.Name;
