@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEngine;
 using WebSocketSharp;
 
@@ -20,30 +22,31 @@ public class WebsocketClient : MonoBehaviour
     private int[] redsIndex;
     private bool shouldFocusOnReds = false;
 
+    private string labelToShow = "";
+
     void Start()
     {
         loader = GetComponent<AlienLevelLoader>();
-
-        client = new WebSocket("ws://localhost:1702/commands_editor");
-        client.OnMessage += OnMessage;
-        client.OnOpen += Client_OnOpen;
-        client.OnClose += OnClose;
-        client.Connect();
-
-        SendMessage(MessageType.TEST, "Test");
+        StartCoroutine(ReconnectLoop());
     }
 
     private void Update()
     {
         if (shouldLoad)
         {
-            loader.LoadLevel(levelToLoad);
+            if (loader.CurrentLevelName != levelToLoad)
+                loader.LoadLevel(levelToLoad);
+            SendMessage(MessageType.REPORT_LOADED_LEVEL, "");
             shouldLoad = false;
         }
         if (shouldRepositionCam)
         {
             Camera.main.transform.position = camPosition - new Vector3(0, 1, 0);
             Camera.main.transform.LookAt(camPosition);
+            this.transform.position = camPosition;
+            Selection.activeGameObject = this.gameObject;
+            SceneView.FrameLastActiveSceneView();
+            SceneView.FrameLastActiveSceneView();
             shouldRepositionCam = false;
         }
         if (shouldFocusOnReds)
@@ -51,13 +54,21 @@ public class WebsocketClient : MonoBehaviour
             List<UnityEngine.Object> objs = new List<UnityEngine.Object>(redsIndex.Length);
             for (int i = 0; i < redsIndex.Length; i++) objs.Add(GameObject.Find(levelToLoad).transform.GetChild(redsIndex[i]));
             Selection.objects = objs.ToArray();
+            SceneView.FrameLastActiveSceneView();
+            SceneView.FrameLastActiveSceneView();
             shouldFocusOnReds = false;
         }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Handles.Label(this.transform.position, labelToShow);
     }
 
     private void OnMessage(object sender, MessageEventArgs e)
     {
         MessageType type = (MessageType)Convert.ToInt32(e.Data.Substring(0, 1));
+        Debug.Log(type + ": " + e.Data);
         switch (type)
         {
             case MessageType.LOAD_LEVEL:
@@ -104,18 +115,50 @@ public class WebsocketClient : MonoBehaviour
                     mutex.ReleaseMutex();
                     break;
                 }
+            case MessageType.SHOW_ENTITY_NAME:
+                {
+                    mutex.WaitOne();
+                    labelToShow = e.Data.Substring(1);
+                    mutex.ReleaseMutex();
+                    break;
+                }
         }
-        Debug.Log(e.Data);
     }
 
     private void OnClose(object sender, CloseEventArgs e)
     {
+        Debug.Log("Websocket CLOSED");
+    }
+    private IEnumerator ReconnectLoop()
+    {
+        yield return new WaitForEndOfFrame();
+
+        while (true)
+        {
+            client = new WebSocket("ws://localhost:1702/commands_editor");
+            client.OnMessage += OnMessage;
+            client.OnOpen += Client_OnOpen;
+            client.OnClose += OnClose;
+            client.Connect();
+
+            Debug.Log("Trying to connect to Commands Editor...");
+
+            while (!client.IsAlive)
+                yield return new WaitForEndOfFrame();
+
+            Debug.Log("Connected to Commands Editor!");
+
+            while (client.IsAlive)
+                yield return new WaitForEndOfFrame();
+
+            client.Close();
+        }
 
     }
 
     private void Client_OnOpen(object sender, EventArgs e)
     {
-        Debug.Log("open");
+        Debug.Log("Websocket OPEN");
     }
 
     public void SendMessage(MessageType type, string content)
@@ -134,6 +177,8 @@ public enum MessageType
 
     GO_TO_POSITION,
     GO_TO_REDS,
+
+    SHOW_ENTITY_NAME,
 
     REPORT_LOADED_LEVEL,
     REPORTING_LOADED_LEVEL,
