@@ -135,16 +135,25 @@ public class WebsocketClient : MonoBehaviour
 
         while (true)
         {
+            if (client != null)
+            {
+                client.OnMessage -= OnMessage;
+                client.OnOpen -= Client_OnOpen;
+                client.OnClose -= OnClose;
+            }
+
             client = new WebSocket("ws://localhost:1702/commands_editor");
             client.OnMessage += OnMessage;
             client.OnOpen += Client_OnOpen;
             client.OnClose += OnClose;
-            client.Connect();
 
             Debug.Log("Trying to connect to Commands Editor...");
 
             while (!client.IsAlive)
-                yield return new WaitForEndOfFrame();
+            {
+                client.Connect();
+                yield return new WaitForSeconds(1.5f);
+            }
 
             Debug.Log("Connected to Commands Editor!");
 
