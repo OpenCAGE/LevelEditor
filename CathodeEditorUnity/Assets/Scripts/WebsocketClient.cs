@@ -45,8 +45,7 @@ public class WebsocketClient : MonoBehaviour
             Camera.main.transform.LookAt(camPosition);
             this.transform.position = camPosition;
             Selection.activeGameObject = this.gameObject;
-            SceneView.FrameLastActiveSceneView();
-            SceneView.FrameLastActiveSceneView();
+            StartCoroutine(FocusDelayed());
             shouldRepositionCam = false;
         }
         if (shouldFocusOnReds)
@@ -54,10 +53,16 @@ public class WebsocketClient : MonoBehaviour
             List<UnityEngine.Object> objs = new List<UnityEngine.Object>(redsIndex.Length);
             for (int i = 0; i < redsIndex.Length; i++) objs.Add(GameObject.Find(levelToLoad).transform.GetChild(redsIndex[i]));
             Selection.objects = objs.ToArray();
-            SceneView.FrameLastActiveSceneView();
-            SceneView.FrameLastActiveSceneView();
+            StartCoroutine(FocusDelayed());
             shouldFocusOnReds = false;
         }
+    }
+    private IEnumerator FocusDelayed()
+    {
+        yield return new WaitForEndOfFrame();
+        //SceneView.FrameLastActiveSceneView();
+        //yield return new WaitForEndOfFrame();
+        //SceneView.FrameLastActiveSceneView();
     }
 
     private void OnDrawGizmos()

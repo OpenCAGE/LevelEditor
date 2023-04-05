@@ -104,6 +104,14 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 RenderableElementsDatabase.RenderableElement RenderableElement = Result.RenderableREDS.RenderableElements[(int)Result.ModelsMVR.Movers[i].renderableElementIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
+                
+                //TEMP: hide volume/decal to make it look less messy : we should just change material
+                if (LoadedModels[RenderableElement.ModelIndex] != null &&
+                    (LoadedModels[RenderableElement.ModelIndex].Name.Contains("VOLUME") ||
+                    LoadedModels[RenderableElement.ModelIndex].Name.Contains("DECAL")))
+                {
+                    thisParent.SetActive(false);
+                }
             }
         }
 
