@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿/*
+using UnityEngine;
 using System.Collections;
 using System.IO;
 using SimpleFileBrowser;
@@ -48,4 +49,4 @@ public class FiileBrowserTest : MonoBehaviour
 			FileBrowserHelpers.CopyFile(FileBrowser.Result[0], destinationPath);
 		}
 	}
-}
+}*/

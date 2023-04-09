@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
 using System.IO;
@@ -6,6 +6,7 @@ using System;
 using CathodeLib;
 using CATHODE.LEGACY;
 using static CATHODE.LEGACY.ShadersPAK;
+using System.Linq;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -20,7 +21,7 @@ public class AlienLevelLoader : MonoBehaviour
     public GameObject CurrentLevelGameObject { get { return levelParent; } }
 
     private alien_level Result = null;
-    private CathodeTextures GlobalTextures;
+    private Textures GlobalTextures;
 
     private GameObject levelParent = null;
 
@@ -44,7 +45,7 @@ public class AlienLevelLoader : MonoBehaviour
         */
 
         //Load global assets
-        GlobalTextures = new CathodeTextures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK", SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES_HEADERS.ALL.BIN");
+        GlobalTextures = new Textures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK");
         //alien_pak2 GlobalAnimations;
         //alien_anim_string_db GlobalAnimationsStrings;
 
@@ -65,45 +66,43 @@ public class AlienLevelLoader : MonoBehaviour
         Result = AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
-        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.entryContents.Count];
-        LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.entryContents.Count];
-        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.entryContents.Count];
-        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.entryContents.Count];
-        for (int i = 0; i < GlobalTextures.entryContents.Count; i++)
+        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.Entries.Count];
+        LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.Entries.Count];
+        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.Entries.Count];
+        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.Entries.Count];
+        for (int i = 0; i < GlobalTextures.Entries.Count; i++)
         {
-            int binIndex = GlobalTextures.entryHeaders[i].BINIndex;
-            LoadedTexturesGlobal[binIndex] = LoadTexture(i, 2, !TextureLoadTrackerGlobal[binIndex]);
-            TextureLoadTrackerGlobal[binIndex] = true;
+            LoadedTexturesGlobal[i] = LoadTexture(i, 2, !TextureLoadTrackerGlobal[i]);
+            TextureLoadTrackerGlobal[i] = true;
         }
-        for (int i = 0; i < Result.LevelTextures.entryContents.Count; i++)
+        for (int i = 0; i < Result.LevelTextures.Entries.Count; i++)
         {
-            int binIndex = Result.LevelTextures.entryHeaders[i].BINIndex;
-            LoadedTexturesLevel[binIndex] = LoadTexture(i, 0, !TextureLoadTrackerLevel[binIndex]);
-            TextureLoadTrackerLevel[binIndex] = true;
+            LoadedTexturesLevel[i] = LoadTexture(i, 0, !TextureLoadTrackerLevel[i]);
+            TextureLoadTrackerLevel[i] = true;
         }
 
         //Load all materials
-        LoadedMaterials = new Material[Result.ModelsMTL._materials.Length];
-        for (int i = 0; i < Result.ModelsMTL._materials.Length; i++) LoadMaterial(i);
+        LoadedMaterials = new Material[99999];
+        for (int i = 0; i < Result.ModelsMTL.Entries.Count; i++) LoadMaterial(i);
 
         //Load all models
-        LoadedModels = new GameObjectHolder[Result.ModelsPAK.modelBIN.Header.ModelCount];
-        for (int i = 0; i < Result.ModelsPAK.Models.Count; i++) LoadModel(i);
+        LoadedModels = new GameObjectHolder[99999];
+        for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
         levelParent = new GameObject(LEVEL_NAME);
-        for (int i = 0; i < Result.ModelsMVR.Movers.Count; i++)
+        for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Movers[i].renderableElementIndex + "/" + Result.ModelsMVR.Movers[i].renderableElementCount);
-            Matrix4x4 m = Result.ModelsMVR.Movers[i].transform;
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Entries[i].renderableElementIndex + "/" + Result.ModelsMVR.Entries[i].renderableElementCount);
+            Matrix4x4 m = Result.ModelsMVR.Entries[i].transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
             thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
             thisParent.transform.parent = levelParent.transform;
-            for (int x = 0; x < Result.ModelsMVR.Movers[i].renderableElementCount; x++)
+            for (int x = 0; x < Result.ModelsMVR.Entries[i].renderableElementCount; x++)
             {
-                RenderableElementsDatabase.RenderableElement RenderableElement = Result.RenderableREDS.RenderableElements[(int)Result.ModelsMVR.Movers[i].renderableElementIndex + x];
-                SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
+                RenderableElements.Element RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].renderableElementIndex + x];
+                SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
             }
         }
 
@@ -122,9 +121,7 @@ public class AlienLevelLoader : MonoBehaviour
             GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
             if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
 
-            MoverDatabase.MOVER_DESCRIPTOR thisEntry = Result.ModelsMVR.Movers[i];
-            thisEntry.transform = mvrEntry.transform.localToWorldMatrix;
-            Result.ModelsMVR.Movers[i] = thisEntry;
+            Result.ModelsMVR.Entries[i].transform = mvrEntry.transform.localToWorldMatrix;
         }
 
         Result.ModelsMVR.Save();
@@ -132,24 +129,21 @@ public class AlienLevelLoader : MonoBehaviour
 
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
-        if (binIndex >= Result.ModelsPAK.modelBIN.Header.ModelCount)
+        GameObjectHolder holder = LoadModel(binIndex);
+        if (holder == null)
         {
-            Debug.LogWarning("binIndex out of range!");
+            Debug.Log("Attempted to load non-parsed model (" + binIndex + "). Skipping!");
             return;
         }
-        if (LoadedModels[binIndex] == null)
-        {
-            Debug.Log("Attempted to load non-parsed model (" + binIndex + ", " + Result.ModelsPAK.modelBIN.ModelFilePaths[binIndex] + "). Skipping!");
-            return;
-        }
+
         GameObject newModelSpawn = new GameObject();
         if (parent != null) newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
         newModelSpawn.transform.localRotation = Quaternion.identity;
-        newModelSpawn.transform.localScale = LoadedModels[binIndex].LocalScale;
-        newModelSpawn.name = LoadedModels[binIndex].Name;
-        newModelSpawn.AddComponent<MeshFilter>().sharedMesh = LoadedModels[binIndex].MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedMaterials[(mtlIndex == -1) ? LoadedModels[binIndex].DefaultMaterial : mtlIndex];
+        newModelSpawn.transform.localScale = holder.LocalScale;
+        newModelSpawn.name = holder.Name;
+        newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
+        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedMaterials[(mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex];
 
         //todo apply mvr colour scale here
     }
@@ -158,325 +152,106 @@ public class AlienLevelLoader : MonoBehaviour
     {
         AlienTexture toReturn = new AlienTexture();
 
-        CathodeTextures AlienTextures = GetTexturesTable(paktype); 
-        if (EntryIndex < 0 || EntryIndex >= AlienTextures.entryContents.Count)
+        Textures AlienTextures = GetTexturesTable(paktype); 
+        if (EntryIndex < 0 || EntryIndex >= AlienTextures.Entries.Count)
         {
             Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
             return null;
         }
 
-        GenericPAKEntry Entry = AlienTextures.entryHeaders[EntryIndex];
-        TextureEntry InTexture = AlienTextures.Textures[Entry.BINIndex];
+        Textures.TEX4 InTexture = AlienTextures.Entries[EntryIndex];
+        Textures.TEX4_Part TexPart = loadV1 ? InTexture.tex_HighRes : InTexture.tex_LowRes;
 
         Vector2 textureDims;
         int textureLength = 0;
         int mipLevels = 0;
 
-        if (loadV1)
+        textureDims = new Vector2(TexPart.Width, TexPart.Height);
+        if (TexPart.Content == null || TexPart.Content.Length == 0)
         {
-            textureDims = new Vector2(InTexture.Size_V1[0], InTexture.Size_V1[1]);
-            textureLength = InTexture.Length_V1;
-            mipLevels = InTexture.MipLevelsV1;
-        } 
-        else
-        {
-            textureDims = new Vector2(InTexture.Size_V2[0], InTexture.Size_V2[1]);
-            textureLength = InTexture.Length_V2;
-            mipLevels = InTexture.MipLevelsV2;
-        }
-
-        if (textureLength == 0)
-        {
-            Debug.LogWarning("LENGTH ZERO - NOT LOADING");
+            //Debug.LogWarning("LENGTH ZERO - NOT LOADING");
             return toReturn;
         }
+        textureLength = TexPart.Content.Length;
+        mipLevels = TexPart.MipLevels;
 
         UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
         switch (InTexture.Format)
         {
-            case CATHODE.LEGACY.TextureFormat.R32G32B32A32_SFLOAT:
-                format = UnityEngine.TextureFormat.RGBA32;
-                break;
-            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM:
-                format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
-                break;
-            case CATHODE.LEGACY.TextureFormat.R8G8B8A8_UNORM_0:
-                format = UnityEngine.TextureFormat.ETC2_RGBA8; //?
-                break;
-            case CATHODE.LEGACY.TextureFormat.SIGNED_DISTANCE_FIELD:
-                Debug.LogWarning("SDF! NOT LOADED");
-                return toReturn;
-            case CATHODE.LEGACY.TextureFormat.R8:
-                format = UnityEngine.TextureFormat.R8;
-                break;
-            case CATHODE.LEGACY.TextureFormat.DDS_BC1:
+            case Textures.TextureFormat.DXGI_FORMAT_BC1_UNORM:
                 format = UnityEngine.TextureFormat.DXT1;
                 break;
-            case CATHODE.LEGACY.TextureFormat.DDS_BC2:
-                Debug.LogWarning("BC2! NOT LOADED");
-                return toReturn;
-            case CATHODE.LEGACY.TextureFormat.DDS_BC5:
-                format = UnityEngine.TextureFormat.BC5; //Is this correct?
-                break;
-            case CATHODE.LEGACY.TextureFormat.DDS_BC3:
+            case Textures.TextureFormat.DXGI_FORMAT_BC3_UNORM:
                 format = UnityEngine.TextureFormat.DXT5;
                 break;
-            case CATHODE.LEGACY.TextureFormat.DDS_BC7:
+            case Textures.TextureFormat.DXGI_FORMAT_BC5_UNORM:
+                format = UnityEngine.TextureFormat.BC5;
+                break;
+            case Textures.TextureFormat.DXGI_FORMAT_BC7_UNORM:
                 format = UnityEngine.TextureFormat.BC7;
                 break;
-            case CATHODE.LEGACY.TextureFormat.R8G8:
-                format = UnityEngine.TextureFormat.BC5; // is this correct?
+            case Textures.TextureFormat.DXGI_FORMAT_B8G8R8_UNORM:
+                Debug.LogWarning("BGR24 UNSUPPORTED!");
+                return toReturn;
+            case Textures.TextureFormat.DXGI_FORMAT_B8G8R8A8_UNORM:
+                format = UnityEngine.TextureFormat.BGRA32;
                 break;
         }
 
-        BinaryReader tempReader = new BinaryReader(new MemoryStream(AlienTextures.dataStart));
-        tempReader.BaseStream.Position = Entry.Offset;
+        BinaryReader tempReader = new BinaryReader(new MemoryStream(TexPart.Content));
 
-        if (InTexture.Type == 7)
+        switch (InTexture.Type)
         {
-            Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
-            cubemapTex.name = AlienTextures.TextureFilePaths[Entry.BINIndex];
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
-            cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
-            cubemapTex.Apply();
-            toReturn.cubemap = cubemapTex;
-            //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
-        }
-        else
-        {
-            Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-            texture.name = AlienTextures.TextureFilePaths[Entry.BINIndex];
-            texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
-            texture.Apply();
-            toReturn.texture = texture;
+            case Textures.AlienTextureType.ENVIRONMENT_MAP:
+                Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
+                cubemapTex.name = InTexture.Name;
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
+                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
+                cubemapTex.Apply();
+                toReturn.cubemap = cubemapTex;
+                //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
+                break;
+            default:
+                Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
+                texture.name = InTexture.Name;
+                texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
+                texture.Apply();
+                toReturn.texture = texture;
+                break;
         }
 
         tempReader.Close();
         return toReturn;
     }
 
-    private void LoadModel(int EntryIndex)
+    private GameObjectHolder LoadModel(int EntryIndex)
     {
-        if (EntryIndex < 0 || EntryIndex >= Result.ModelsPAK.Models.Count)
+        if (LoadedModels[EntryIndex] == null)
         {
-            Debug.LogWarning("Asked to load model at index " + EntryIndex + ", which is out of bounds!");
-            //return new GameObject();
-            return;
-        }
-
-        CathodeModels.ModelData ChunkArray = Result.ModelsPAK.Models[EntryIndex];
-        for (int ChunkIndex = 0; ChunkIndex < ChunkArray.Header.SubmeshCount; ++ChunkIndex)
-        {
-            int BINIndex = ChunkArray.Submeshes[ChunkIndex].binIndex;
-            CathodeModels.alien_model_bin_model_info Model = Result.ModelsPAK.modelBIN.Models[BINIndex];
-            //if (Model.BlockSize == 0) continue;
-
-            CathodeModels.alien_vertex_buffer_format VertexInput = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndex];
-            CathodeModels.alien_vertex_buffer_format VertexInputLowDetail = Result.ModelsPAK.modelBIN.VertexBufferFormats[Model.VertexFormatIndexLowDetail];
-
-            BinaryReader Stream = new BinaryReader(new MemoryStream(ChunkArray.Submeshes[ChunkIndex].content));
-
-            List<List<CathodeModels.alien_vertex_buffer_format_element>> Elements = new List<List<CathodeModels.alien_vertex_buffer_format_element>>();
-            CathodeModels.alien_vertex_buffer_format_element ElementHeader = new CathodeModels.alien_vertex_buffer_format_element();
-            foreach (CathodeModels.alien_vertex_buffer_format_element Element in VertexInput.Elements)
-            {
-                if (Element.ArrayIndex == 0xFF)
-                {
-                    ElementHeader = Element;
-                    continue;
-                }
-
-                while (Elements.Count - 1 < Element.ArrayIndex) Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>());
-                Elements[Element.ArrayIndex].Add(Element);
-            }
-            Elements.Add(new List<CathodeModels.alien_vertex_buffer_format_element>() { ElementHeader });
-
-            List<UInt16> InIndices = new List<UInt16>();
-            List<Vector3> InVertices = new List<Vector3>();
-            List<Vector3> InNormals = new List<Vector3>();
-            List<Vector4> InTangents = new List<Vector4>();
-            List<Vector2> InUVs0 = new List<Vector2>();
-            List<Vector2> InUVs1 = new List<Vector2>();
-            List<Vector2> InUVs2 = new List<Vector2>();
-            List<Vector2> InUVs3 = new List<Vector2>();
-            List<Vector2> InUVs7 = new List<Vector2>();
-
-            //TODO: implement skeleton lookup for the indexes
-            List<Vector4> InBoneIndexes = new List<Vector4>(); //The indexes of 4 bones that affect each vertex
-            List<Vector4> InBoneWeights = new List<Vector4>(); //The weights for each bone
-
-            for (int VertexArrayIndex = 0; VertexArrayIndex < Elements.Count; ++VertexArrayIndex)
-            {
-                CathodeModels.alien_vertex_buffer_format_element Inputs = Elements[VertexArrayIndex][0];
-                if (Inputs.ArrayIndex == 0xFF)
-                {
-                    for (int i = 0; i < Model.IndexCount; i++)
-                    {
-                        InIndices.Add(Stream.ReadUInt16());
-                    }
-                }
-                else
-                {
-                    for (int VertexIndex = 0; VertexIndex < Model.VertexCount; ++VertexIndex)
-                    {
-                        for (int ElementIndex = 0; ElementIndex < Elements[VertexArrayIndex].Count; ++ElementIndex)
-                        {
-                            CathodeModels.alien_vertex_buffer_format_element Input = Elements[VertexArrayIndex][ElementIndex];
-                            switch (Input.VariableType)
-                            {
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v3:
-                                    {
-                                        Vector3 Value = new Vector3(Stream.ReadSingle(), Stream.ReadSingle(), Stream.ReadSingle());
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(Value);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
-                                                InTangents.Add(new Vector4(Value.x, Value.y, Value.z, 0));
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                //TODO: 3D UVW
-                                                break;
-                                        };
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_u32_C:
-                                    {
-                                        int Value = Stream.ReadInt32();
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_C:
-                                                //??
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_i:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BI:
-                                                InBoneIndexes.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_f:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        Value /= 255.0f;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_BW:
-                                                float Sum = Value.x + Value.y + Value.z + Value.w;
-                                                InBoneWeights.Add(Value / Sum);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                InUVs2.Add(new Vector2(Value.x, Value.y));
-                                                InUVs3.Add(new Vector2(Value.z, Value.w));
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v2s16_UV:
-                                    {
-                                        Vector2 Value = new Vector2(Stream.ReadInt16(), Stream.ReadInt16());
-                                        Value /= 2048.0f;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_UV:
-                                                if (Input.VariantIndex == 0) InUVs0.Add(Value);
-                                                else if (Input.VariantIndex == 1)
-                                                {
-                                                    // TODO: We can figure this out based on alien_vertex_buffer_format_element.
-                                                    //Material->Material.Flags |= Material_HasTexCoord1;
-                                                    InUVs1.Add(Value);
-                                                }
-                                                else if (Input.VariantIndex == 2) InUVs2.Add(Value);
-                                                else if (Input.VariantIndex == 3) InUVs3.Add(Value);
-                                                else if (Input.VariantIndex == 7) InUVs7.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4s16_f:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16(), Stream.ReadInt16());
-                                        Value /= (float)Int16.MaxValue;
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_P:
-                                                InVertices.Add(Value);
-                                                break;
-                                        }
-                                        break;
-                                    }
-
-                                case CathodeModels.alien_vertex_input_type.AlienVertexInputType_v4u8_NTB:
-                                    {
-                                        Vector4 Value = new Vector4(Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte(), Stream.ReadByte());
-                                        Value /= (float)byte.MaxValue - 0.5f;
-                                        Value.Normalize();
-                                        switch (Input.ShaderSlot)
-                                        {
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_N:
-                                                InNormals.Add(Value);
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_T:
-                                                break;
-                                            case CathodeModels.alien_vertex_input_slot.AlienVertexInputSlot_B:
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-                }
-                CathodeLib.Utilities.Align(Stream, 16);
-            }
-
-            if (InVertices.Count == 0) continue;
-
-            Mesh thisMesh = new Mesh();
-            thisMesh.name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex];
-            thisMesh.SetVertices(InVertices);
-            thisMesh.SetNormals(InNormals);
-            thisMesh.SetIndices(InIndices, MeshTopology.Triangles, 0); //0??
-            thisMesh.SetTangents(InTangents);
-            thisMesh.SetUVs(0, InUVs0);
-            thisMesh.SetUVs(1, InUVs1);
-            thisMesh.SetUVs(2, InUVs2);
-            thisMesh.SetUVs(3, InUVs3);
-            thisMesh.SetUVs(7, InUVs7);
-            //thisMesh.SetBoneWeights(InBoneWeights.ToArray());
-            thisMesh.RecalculateBounds();
-            thisMesh.RecalculateNormals();
-            thisMesh.RecalculateTangents();
+            Models.CS2.LOD.Submesh submesh = Result.ModelsPAK.GetAtWriteIndex(EntryIndex);
+            if (submesh == null) return null;
+            Models.CS2.LOD lod = Result.ModelsPAK.FindModelLODForSubmesh(submesh);
+            Models.CS2 mesh = Result.ModelsPAK.FindModelForSubmesh(submesh);
+            Mesh thisMesh = Result.ModelsPAK.GetMesh(submesh);
 
             GameObjectHolder ThisModelPart = new GameObjectHolder();
-            ThisModelPart.LocalScale = new Vector3(Model.ScaleFactor, Model.ScaleFactor, Model.ScaleFactor);
-            ThisModelPart.Name = Result.ModelsPAK.modelBIN.ModelFilePaths[BINIndex] + ": " + Result.ModelsPAK.modelBIN.ModelLODPartNames[BINIndex] + " (" + Result.ModelsMTL._materialNames[Model.MaterialLibraryIndex] + ")";
+            ThisModelPart.LocalScale = new Vector3(submesh.ScaleFactor, submesh.ScaleFactor, submesh.ScaleFactor);
+            ThisModelPart.Name = ((mesh == null) ? "" : mesh.Name) + ": " + ((lod == null) ? "" : lod.Name);
             ThisModelPart.MainMesh = thisMesh;
-            ThisModelPart.DefaultMaterial = Model.MaterialLibraryIndex;
-            LoadedModels[BINIndex] = ThisModelPart;
+            ThisModelPart.DefaultMaterial = submesh.MaterialLibraryIndex;
+            LoadedModels[EntryIndex] = ThisModelPart;
         }
+
+        return LoadedModels[EntryIndex];
     }
 
     private MaterialPropertyIndex GetMaterialPropertyIndex(int MaterialIndex)
     {
-        MaterialDatabase.Entry InMaterial = Result.ModelsMTL._materials[MaterialIndex];
+        Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MaterialIndex);
         ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[InMaterial.UberShaderIndex];
 
         MaterialPropertyIndex toReturn = new MaterialPropertyIndex();
@@ -591,12 +366,12 @@ public class AlienLevelLoader : MonoBehaviour
 
     public void LoadMaterial(int MTLIndex)
     {
-        MaterialDatabase.Entry InMaterial = Result.ModelsMTL._materials[MTLIndex];
+        Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MTLIndex);
         int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
         ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[RemappedIndex];
 
         Material toReturn = new Material(UnityEngine.Shader.Find("Standard"));
-        toReturn.name = Result.ModelsMTL._materialNames[MTLIndex];
+        toReturn.name = InMaterial.Name;
 
         List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
         ShaderCategory ShaderCategory = (ShaderCategory)Shader.Header2.ShaderCategory;
@@ -841,12 +616,21 @@ public class AlienLevelLoader : MonoBehaviour
         {
             int PairIndex = Shader.TextureLinks[SlotIndex];
             // NOTE: PairIndex == 255 means no index.
-            if (PairIndex < Result.ModelsMTL._textureReferenceCounts[MTLIndex])
+            if (PairIndex < InMaterial.TextureReferences.Count)
             {
-                MaterialDatabase.TextureReference Pair = InMaterial.TextureReferences[PairIndex];
-                if (Pair.TextureTableIndex == 0) availableTextures.Add(LoadedTexturesLevel[Pair.TextureIndex].texture);
-                else if (Pair.TextureTableIndex == 2) availableTextures.Add(LoadedTexturesGlobal[Pair.TextureIndex].texture);
-                else availableTextures.Add(null);
+                Materials.Material.Texture Pair = InMaterial.TextureReferences[PairIndex];
+                switch (Pair.Source)
+                {
+                    case Materials.Material.Texture.TextureSource.LEVEL:
+                        availableTextures.Add(LoadedTexturesLevel[Pair.BinIndex].texture);
+                        break;
+                    case Materials.Material.Texture.TextureSource.GLOBAL:
+                        availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex].texture);
+                        break;
+                    default:
+                        availableTextures.Add(null);
+                        break;
+                }
             }
             else
             {
@@ -893,8 +677,8 @@ public class AlienLevelLoader : MonoBehaviour
 
         //Apply properties
         MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
-        BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsCST));
-        int baseOffset = Result.ModelsMTL._header.CSTOffsets[2] + (InMaterial.CSTOffsets[2] * 4);
+        BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsMTL.CSTData[2]));
+        int baseOffset = (InMaterial.ConstantBuffers[2].CstIndex * 4);
         if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
         {
             Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
@@ -952,7 +736,7 @@ public class AlienLevelLoader : MonoBehaviour
         return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
     }
 
-    public CathodeTextures GetTexturesTable(int TableIndex)
+    public Textures GetTexturesTable(int TableIndex)
     {
         if (TableIndex == 0) return Result.LevelTextures;
         if (TableIndex == 2) return GlobalTextures;

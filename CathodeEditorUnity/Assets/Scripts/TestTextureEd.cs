@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿/*
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
@@ -166,5 +167,6 @@ public class TestTextureEd : MonoSingleton<TestTextureEd>
         texture.Apply();
         toReturn.texture = texture;
     }
-    */
+    *//*
 }
+*/
