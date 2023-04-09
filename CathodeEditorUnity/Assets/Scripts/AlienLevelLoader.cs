@@ -7,6 +7,7 @@ using CathodeLib;
 using CATHODE.LEGACY;
 using static CATHODE.LEGACY.ShadersPAK;
 using System.Linq;
+using Unity.Profiling;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -29,6 +30,9 @@ public class AlienLevelLoader : MonoBehaviour
     private AlienTexture[] LoadedTexturesLevel;
     private GameObjectHolder[] LoadedModels;
     private Material[] LoadedMaterials;
+
+    static readonly ProfilerMarker marker_LoadAssets = new ProfilerMarker("LOADER.LoadingAssets");
+    static readonly ProfilerMarker marker_Populating = new ProfilerMarker("LOADER.PopulatingLevel");
 
     void Start()
     {
@@ -61,6 +65,7 @@ public class AlienLevelLoader : MonoBehaviour
     {
         LEVEL_NAME = level;
         if (levelParent != null) Destroy(levelParent);
+        marker_LoadAssets.Begin();
 
         //Load level assets
         Result = AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
@@ -90,6 +95,8 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
 
         //Populate the level with "movers"
+        marker_LoadAssets.End();
+        marker_Populating.Begin();
         levelParent = new GameObject(LEVEL_NAME);
         for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
         {
@@ -105,6 +112,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
             }
         }
+        marker_Populating.End();
 
         //Pull content from COMMANDS
         //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
@@ -143,7 +151,7 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.transform.localScale = holder.LocalScale;
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadedMaterials[(mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex];
+        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
 
         //todo apply mvr colour scale here
     }
@@ -364,142 +372,146 @@ public class AlienLevelLoader : MonoBehaviour
         return toReturn;
     }
 
-    public void LoadMaterial(int MTLIndex)
+    public Material LoadMaterial(int MTLIndex)
     {
-        Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MTLIndex);
-        int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
-        ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[RemappedIndex];
-
-        Material toReturn = new Material(UnityEngine.Shader.Find("Standard"));
-        toReturn.name = InMaterial.Name;
-
-        List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
-        ShaderCategory ShaderCategory = (ShaderCategory)Shader.Header2.ShaderCategory;
-
-        switch (ShaderCategory)
+        if (LoadedMaterials[MTLIndex] == null)
         {
-            case ShaderCategory.CA_PARTICLE:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);      //TODO: is it really?
-                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
-                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);         //TODO: unsure
-                SlotOffsets.Add(alien_slot_ids.FLOW_TEXTURE_MAP); //TODO: unsure
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                break;
+            Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MTLIndex);
+            int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
+            ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[RemappedIndex];
 
-            case ShaderCategory.CA_RIBBON:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
-                break;
+            Material toReturn = new Material(UnityEngine.Shader.Find("Standard"));
+            toReturn.name = InMaterial.Name;
 
-            case ShaderCategory.CA_ENVIRONMENT:
-                SlotOffsets.Add(alien_slot_ids.OPACITY);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OCCLUSION);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.FRESNEL_LUT);
-                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
-                break;
+            List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
+            ShaderCategory ShaderCategory = (ShaderCategory)Shader.Header2.ShaderCategory;
 
-            case ShaderCategory.CA_DECAL_ENVIRONMENT:
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                break;
+            switch (ShaderCategory)
+            {
+                case ShaderCategory.CA_PARTICLE:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);      //TODO: is it really?
+                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
+                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);         //TODO: unsure
+                    SlotOffsets.Add(alien_slot_ids.FLOW_TEXTURE_MAP); //TODO: unsure
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    break;
 
-            case ShaderCategory.CA_CHARACTER:
-                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OCCLUSION);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                break;
+                case ShaderCategory.CA_RIBBON:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
+                    break;
 
-            case ShaderCategory.CA_SKIN:
-                SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.WRINKLE_MASK);
-                SlotOffsets.Add(alien_slot_ids.WRINKLE_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                break;
+                case ShaderCategory.CA_ENVIRONMENT:
+                    SlotOffsets.Add(alien_slot_ids.OPACITY);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.FRESNEL_LUT);
+                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
+                    break;
 
-            case ShaderCategory.CA_HAIR:
-                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                break;
+                case ShaderCategory.CA_DECAL_ENVIRONMENT:
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                    break;
 
-            case ShaderCategory.CA_EYE:
-                SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
-                SlotOffsets.Add(alien_slot_ids.SCATTER_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                break;
+                case ShaderCategory.CA_CHARACTER:
+                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                    break;
 
-            case ShaderCategory.CA_SKIN_OCCLUSION:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                break;
+                case ShaderCategory.CA_SKIN:
+                    SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.WRINKLE_MASK);
+                    SlotOffsets.Add(alien_slot_ids.WRINKLE_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                    break;
 
-            case ShaderCategory.CA_DECAL:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.EMISSIVE);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                SlotOffsets.Add(alien_slot_ids.BURN_THROUGH);
-                SlotOffsets.Add(alien_slot_ids.LIQUIFY);
-                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                SlotOffsets.Add(alien_slot_ids.LIQUIFY2);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
-                break;
+                case ShaderCategory.CA_HAIR:
+                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    break;
+
+                case ShaderCategory.CA_EYE:
+                    SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
+                    SlotOffsets.Add(alien_slot_ids.SCATTER_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                    break;
+
+                case ShaderCategory.CA_SKIN_OCCLUSION:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    break;
+
+                    /*
+                case ShaderCategory.CA_DECAL:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.EMISSIVE);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                    SlotOffsets.Add(alien_slot_ids.BURN_THROUGH);
+                    SlotOffsets.Add(alien_slot_ids.LIQUIFY);
+                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                    SlotOffsets.Add(alien_slot_ids.LIQUIFY2);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
+                    break;
+                    */
 
                 /*
             case ShaderCategory.CA_FOGPLANE:
@@ -511,220 +523,223 @@ public class AlienLevelLoader : MonoBehaviour
                 break;
                 */
 
-            case ShaderCategory.CA_REFRACTION:
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
-                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                //Material->Material.BaseColor = { };
-                break;
+                case ShaderCategory.CA_REFRACTION:
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
+                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
+                    //Material->Material.BaseColor = { };
+                    break;
 
-            case ShaderCategory.CA_NONINTERACTIVE_WATER:
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
-                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                break;
+                case ShaderCategory.CA_NONINTERACTIVE_WATER:
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
+                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                    break;
 
-            case ShaderCategory.CA_LOW_LOD_CHARACTER:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.LOW_LOD_CHARACTER_MASK);
-                SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                break;
+                case ShaderCategory.CA_LOW_LOD_CHARACTER:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.LOW_LOD_CHARACTER_MASK);
+                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    break;
 
-            case ShaderCategory.CA_LIGHT_DECAL:
-                SlotOffsets.Add(alien_slot_ids.EMISSIVE);
-                break;
+                case ShaderCategory.CA_LIGHT_DECAL:
+                    SlotOffsets.Add(alien_slot_ids.EMISSIVE);
+                    break;
 
-            case ShaderCategory.CA_SPACESUIT_VISOR:
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
-                SlotOffsets.Add(alien_slot_ids.FACE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.UNSCALED_DIRT_MAP);
-                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                break;
+                case ShaderCategory.CA_SPACESUIT_VISOR:
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
+                    SlotOffsets.Add(alien_slot_ids.FACE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.UNSCALED_DIRT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                    break;
 
-            case ShaderCategory.CA_PLANET:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);          // TODO: This is the AtmosphereMap.
-                SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);           // TODO: This is the AtmosphereNormalMap.
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);// TODO: This is the TerrainMap.
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP); // TODO: This is the TerrainNormalMap.
-                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                break;
+                case ShaderCategory.CA_PLANET:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);          // TODO: This is the AtmosphereMap.
+                    SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);           // TODO: This is the AtmosphereNormalMap.
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);// TODO: This is the TerrainMap.
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP); // TODO: This is the TerrainNormalMap.
+                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
+                    break;
 
-            case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
-                SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                SlotOffsets.Add(alien_slot_ids.OPACITY);
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.OCCLUSION); 
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                break;
+                case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
+                    SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY);
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    break;
 
-            case ShaderCategory.CA_TERRAIN:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
-                break;
+                case ShaderCategory.CA_TERRAIN:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
+                    SlotOffsets.Add(alien_slot_ids.NONE);
+                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
+                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
+                    SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
+                    break;
 
-            case ShaderCategory.CA_CAMERA_MAP:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                break;
+                case ShaderCategory.CA_CAMERA_MAP:
+                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+                    break;
 
-            //Unsupported shader slot types - draw transparent for now
-            case ShaderCategory.CA_SHADOWCASTER:
-            case ShaderCategory.CA_DEFERRED:
-            case ShaderCategory.CA_DEBUG:
-            case ShaderCategory.CA_OCCLUSION_CULLING:
-            default:
-                toReturn.name += " (NOT RENDERED: " + ShaderCategory.ToString() + ")";
-                toReturn.color = new Color(0,0,0,0);
-                toReturn.SetFloat("_Mode", 1.0f);
-                toReturn.EnableKeyword("_ALPHATEST_ON");
-                LoadedMaterials[MTLIndex] = toReturn;
-                return;
-        }
-        toReturn.name += " " + ShaderCategory.ToString();
+                //Unsupported shader slot types - draw transparent for now
+                case ShaderCategory.CA_SHADOWCASTER:
+                case ShaderCategory.CA_DEFERRED:
+                case ShaderCategory.CA_DEBUG:
+                case ShaderCategory.CA_OCCLUSION_CULLING:
+                default:
+                    toReturn.name += " (NOT RENDERED: " + ShaderCategory.ToString() + ")";
+                    toReturn.color = new Color(0, 0, 0, 0);
+                    toReturn.SetFloat("_Mode", 1.0f);
+                    toReturn.EnableKeyword("_ALPHATEST_ON");
+                    LoadedMaterials[MTLIndex] = toReturn;
+                    return LoadedMaterials[MTLIndex];
+            }
+            toReturn.name += " " + ShaderCategory.ToString();
 
-        List<Texture> availableTextures = new List<Texture>();
-        for (int SlotIndex = 0; SlotIndex < Shader.Header.TextureLinkCount; ++SlotIndex)
-        {
-            int PairIndex = Shader.TextureLinks[SlotIndex];
-            // NOTE: PairIndex == 255 means no index.
-            if (PairIndex < InMaterial.TextureReferences.Count)
+            List<Texture> availableTextures = new List<Texture>();
+            for (int SlotIndex = 0; SlotIndex < Shader.Header.TextureLinkCount; ++SlotIndex)
             {
-                Materials.Material.Texture Pair = InMaterial.TextureReferences[PairIndex];
-                switch (Pair.Source)
+                int PairIndex = Shader.TextureLinks[SlotIndex];
+                // NOTE: PairIndex == 255 means no index.
+                if (PairIndex < InMaterial.TextureReferences.Count)
                 {
-                    case Materials.Material.Texture.TextureSource.LEVEL:
-                        availableTextures.Add(LoadedTexturesLevel[Pair.BinIndex].texture);
+                    Materials.Material.Texture Pair = InMaterial.TextureReferences[PairIndex];
+                    switch (Pair.Source)
+                    {
+                        case Materials.Material.Texture.TextureSource.LEVEL:
+                            availableTextures.Add(LoadedTexturesLevel[Pair.BinIndex].texture);
+                            break;
+                        case Materials.Material.Texture.TextureSource.GLOBAL:
+                            availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex].texture);
+                            break;
+                        default:
+                            availableTextures.Add(null);
+                            break;
+                    }
+                }
+                else
+                {
+                    availableTextures.Add(null);
+                }
+            }
+
+            //Apply materials
+            for (int i = 0; i < SlotOffsets.Count; i++)
+            {
+                if (i >= availableTextures.Count) continue;
+                switch (SlotOffsets[i])
+                {
+                    case alien_slot_ids.DIFFUSE_MAP:
+                        toReturn.SetTexture("_MainTex", availableTextures[i]);
                         break;
-                    case Materials.Material.Texture.TextureSource.GLOBAL:
-                        availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex].texture);
+                    case alien_slot_ids.DETAIL_MAP:
+                        toReturn.EnableKeyword("_DETAIL_MULX2");
+                        toReturn.SetTexture("_DetailMask", availableTextures[i]);
                         break;
-                    default:
-                        availableTextures.Add(null);
+                    case alien_slot_ids.EMISSIVE:
+                        toReturn.EnableKeyword("_EMISSION");
+                        toReturn.SetTexture("_EmissionMap", availableTextures[i]);
+                        break;
+                    case alien_slot_ids.PARALLAX_MAP:
+                        toReturn.EnableKeyword("_PARALLAXMAP");
+                        toReturn.SetTexture("_ParallaxMap", availableTextures[i]);
+                        break;
+                    case alien_slot_ids.OCCLUSION:
+                        toReturn.SetTexture("_OcclusionMap", availableTextures[i]);
+                        break;
+                    case alien_slot_ids.SPECULAR_MAP:
+                        toReturn.EnableKeyword("_METALLICGLOSSMAP");
+                        toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
+                        toReturn.SetFloat("_Glossiness", 0.0f);
+                        toReturn.SetFloat("_GlossMapScale", 0.0f);
+                        break;
+                    case alien_slot_ids.NORMAL_MAP:
+                        toReturn.EnableKeyword("_NORMALMAP");
+                        toReturn.SetTexture("_BumpMap", availableTextures[i]);
                         break;
                 }
             }
-            else
+
+            //Apply properties
+            MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
+            BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsMTL.CSTData[2]));
+            int baseOffset = (InMaterial.ConstantBuffers[2].CstIndex * 4);
+            if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
             {
-                availableTextures.Add(null);
+                Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
+                toReturn.SetColor("_Color", colour);
+                if (colour.w != 1)
+                {
+                    toReturn.SetFloat("_Mode", 1.0f);
+                    toReturn.EnableKeyword("_ALPHATEST_ON");
+                }
             }
+            if (CSTIndexValid(cstIndex.DiffuseUVMultiplierIndex, ref Shader))
+            {
+                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex] * 4));
+                toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+            }
+            if (CSTIndexValid(cstIndex.DiffuseUVAdderIndex, ref Shader))
+            {
+                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVAdderIndex] * 4));
+                toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
+            }
+            if (CSTIndexValid(cstIndex.NormalUVMultiplierIndex, ref Shader))
+            {
+                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.NormalUVMultiplierIndex] * 4));
+                toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
+                toReturn.SetFloat("_BumpScale", offset);
+            }
+            if (CSTIndexValid(cstIndex.OcclusionUVMultiplierIndex, ref Shader))
+            {
+                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.OcclusionUVMultiplierIndex] * 4));
+                toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
+            }
+            if (CSTIndexValid(cstIndex.SpecularUVMultiplierIndex, ref Shader))
+            {
+                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularUVMultiplierIndex] * 4));
+                toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
+                toReturn.SetFloat("_GlossMapScale", offset);
+            }
+            if (CSTIndexValid(cstIndex.SpecularFactorIndex, ref Shader))
+            {
+                float spec = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularFactorIndex] * 4));
+                toReturn.SetFloat("_Glossiness", spec);
+                toReturn.SetFloat("_GlossMapScale", spec);
+            }
+            cstReader.Close();
+
+            LoadedMaterials[MTLIndex] = toReturn;
         }
 
-        //Apply materials
-        for (int i = 0; i < SlotOffsets.Count; i++)
-        {
-            if (i >= availableTextures.Count) continue;
-            switch (SlotOffsets[i])
-            {
-                case alien_slot_ids.DIFFUSE_MAP:
-                    toReturn.SetTexture("_MainTex", availableTextures[i]);
-                    break;
-                case alien_slot_ids.DETAIL_MAP:
-                    toReturn.EnableKeyword("_DETAIL_MULX2");
-                    toReturn.SetTexture("_DetailMask", availableTextures[i]);
-                    break;
-                case alien_slot_ids.EMISSIVE:
-                    toReturn.EnableKeyword("_EMISSION");
-                    toReturn.SetTexture("_EmissionMap", availableTextures[i]);
-                    break;
-                case alien_slot_ids.PARALLAX_MAP:
-                    toReturn.EnableKeyword("_PARALLAXMAP");
-                    toReturn.SetTexture("_ParallaxMap", availableTextures[i]);
-                    break;
-                case alien_slot_ids.OCCLUSION:
-                    toReturn.SetTexture("_OcclusionMap", availableTextures[i]);
-                    break;
-                case alien_slot_ids.SPECULAR_MAP:
-                    toReturn.EnableKeyword("_METALLICGLOSSMAP");
-                    toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
-                    toReturn.SetFloat("_Glossiness", 0.0f);
-                    toReturn.SetFloat("_GlossMapScale", 0.0f);
-                    break;
-                case alien_slot_ids.NORMAL_MAP:
-                    toReturn.EnableKeyword("_NORMALMAP");
-                    toReturn.SetTexture("_BumpMap", availableTextures[i]);
-                    break;
-            }
-        }
-
-        //Apply properties
-        MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
-        BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsMTL.CSTData[2]));
-        int baseOffset = (InMaterial.ConstantBuffers[2].CstIndex * 4);
-        if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
-        {
-            Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
-            toReturn.SetColor("_Color", colour);
-            if (colour.w != 1)
-            {
-                toReturn.SetFloat("_Mode", 1.0f);
-                toReturn.EnableKeyword("_ALPHATEST_ON");
-            }
-        }
-        if (CSTIndexValid(cstIndex.DiffuseUVMultiplierIndex, ref Shader))
-        {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex] * 4));
-            toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
-        }
-        if (CSTIndexValid(cstIndex.DiffuseUVAdderIndex, ref Shader))
-        {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVAdderIndex] * 4));
-            toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
-        }
-        if (CSTIndexValid(cstIndex.NormalUVMultiplierIndex, ref Shader))
-        {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.NormalUVMultiplierIndex] * 4));
-            toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
-            toReturn.SetFloat("_BumpScale", offset);
-        }
-        if (CSTIndexValid(cstIndex.OcclusionUVMultiplierIndex, ref Shader))
-        {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.OcclusionUVMultiplierIndex] * 4));
-            toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
-        }
-        if (CSTIndexValid(cstIndex.SpecularUVMultiplierIndex, ref Shader))
-        {
-            float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularUVMultiplierIndex] * 4));
-            toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
-            toReturn.SetFloat("_GlossMapScale", offset);
-        }
-        if (CSTIndexValid(cstIndex.SpecularFactorIndex, ref Shader))
-        {
-            float spec = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularFactorIndex] * 4));
-            toReturn.SetFloat("_Glossiness", spec);
-            toReturn.SetFloat("_GlossMapScale", spec);
-        }
-        cstReader.Close();
-
-        LoadedMaterials[MTLIndex] = toReturn;
+        return LoadedMaterials[MTLIndex];
     }
     private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
     {
