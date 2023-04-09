@@ -76,6 +76,18 @@ public class WebsocketClient : MonoBehaviour
         Debug.Log(type + ": " + e.Data);
         switch (type)
         {
+            case MessageType.SYNC_VERSION:
+                {
+                    if (e.Data.Substring(1) != VERSION.ToString())
+                    {
+                        Debug.LogError("Your Commands Editor is utilising a newer API version than this Unity client!!\nPlease update this Unity client to avoid experiencing errors.");
+                    }
+                    else
+                    {
+                        Debug.Log("Commands Editor correctly utilises API version " + VERSION + ".");
+                    }
+                    break;
+                }
             case MessageType.LOAD_LEVEL:
                 {
                     mutex.WaitOne();
@@ -179,21 +191,22 @@ public class WebsocketClient : MonoBehaviour
     {
         client.Send(((int)type).ToString() + content);
     }
-}
 
-//TODO: Keep this in sync with server
-public enum MessageType
-{
-    TEST,
+    //TODO: Keep this in sync with server
+    public const int VERSION = 1;
+    public enum MessageType
+    {
+        SYNC_VERSION,
 
-    LOAD_LEVEL,
-    LOAD_LEVEL_AT_POSITION,
+        LOAD_LEVEL,
+        LOAD_LEVEL_AT_POSITION,
 
-    GO_TO_POSITION,
-    GO_TO_REDS,
+        GO_TO_POSITION,
+        GO_TO_REDS,
 
-    SHOW_ENTITY_NAME,
+        SHOW_ENTITY_NAME,
 
-    REPORT_LOADED_LEVEL,
-    REPORTING_LOADED_LEVEL,
+        REPORT_LOADED_LEVEL,
+        REPORTING_LOADED_LEVEL,
+    }
 }
