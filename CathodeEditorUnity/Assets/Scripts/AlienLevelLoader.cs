@@ -88,11 +88,23 @@ public class AlienLevelLoader : MonoBehaviour
 
         //Load all materials
         LoadedMaterials = new Material[99999];
-        for (int i = 0; i < Result.ModelsMTL.Entries.Count; i++) LoadMaterial(i);
+        //for (int i = 0; i < Result.ModelsMTL.Entries.Count; i++) LoadMaterial(i);
 
         //Load all models
         LoadedModels = new GameObjectHolder[99999];
-        for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
+        //for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
+
+        //Set skybox
+        for (int i = 0; i < LoadedTexturesGlobal.Length; i++)
+        {
+            if (LoadedTexturesGlobal[i].IsCubemap)
+            {
+                Material toReturn = new Material(UnityEngine.Shader.Find("Skybox/Cubemap"));
+                toReturn.SetTexture("_Tex", LoadedTexturesGlobal[i].cubemap);
+                RenderSettings.skybox = toReturn;
+                break;
+            }
+        }
 
         //Populate the level with "movers"
         marker_LoadAssets.End();
