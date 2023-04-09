@@ -73,7 +73,7 @@ public class WebsocketClient : MonoBehaviour
     private void OnMessage(object sender, MessageEventArgs e)
     {
         MessageType type = (MessageType)Convert.ToInt32(e.Data.Substring(0, 1));
-        Debug.Log(type + ": " + e.Data);
+        Debug.Log(type + ": " + e.Data.Substring(1));
         switch (type)
         {
             case MessageType.SYNC_VERSION:
@@ -168,13 +168,13 @@ public class WebsocketClient : MonoBehaviour
 
             while (!client.IsAlive)
             {
-                client.Connect();
+                try { client.Connect(); } catch { }
                 yield return new WaitForSeconds(1.5f);
             }
 
             Debug.Log("Connected to Commands Editor!");
 
-            while (client.IsAlive)
+            while (client != null && client.IsAlive)
                 yield return new WaitForEndOfFrame();
 
             client.Close();
