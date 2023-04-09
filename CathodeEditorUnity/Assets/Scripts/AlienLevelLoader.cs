@@ -104,14 +104,6 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 RenderableElementsDatabase.RenderableElement RenderableElement = Result.RenderableREDS.RenderableElements[(int)Result.ModelsMVR.Movers[i].renderableElementIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialLibraryIndex, thisParent);
-                
-                //TEMP: hide volume/decal to make it look less messy : we should just change material
-                if (LoadedModels[RenderableElement.ModelIndex] != null &&
-                    (LoadedModels[RenderableElement.ModelIndex].Name.Contains("VOLUME") ||
-                    LoadedModels[RenderableElement.ModelIndex].Name.Contains("DECAL")))
-                {
-                    thisParent.SetActive(false);
-                }
             }
         }
 
@@ -703,6 +695,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
                 break;
 
+                /*
             case ShaderCategory.AlienShaderCategory_FogPlane:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
@@ -710,6 +703,7 @@ public class AlienLevelLoader : MonoBehaviour
                 //  visually appealing and not slabs of solid white, I am using normal diffuse for now.
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_STATIC);
                 break;
+                */
 
             case ShaderCategory.AlienShaderCategory_Refraction:
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
@@ -794,13 +788,14 @@ public class AlienLevelLoader : MonoBehaviour
 
             //Unsupported shader slot types - draw transparent for now
             default:
-                toReturn.name = "UNRESOLVED: " + ShaderCategory.ToString();
+                toReturn.name += " (NOT RENDERED: " + ShaderCategory.ToString() + ")";
                 toReturn.color = new Color(0,0,0,0);
                 toReturn.SetFloat("_Mode", 1.0f);
                 toReturn.EnableKeyword("_ALPHATEST_ON");
                 LoadedMaterials[MTLIndex] = toReturn;
                 return;
         }
+        toReturn.name += " " + ShaderCategory.ToString();
 
         List<Texture> availableTextures = new List<Texture>();
         for (int SlotIndex = 0; SlotIndex < Shader.Header.TextureLinkCount; ++SlotIndex)
