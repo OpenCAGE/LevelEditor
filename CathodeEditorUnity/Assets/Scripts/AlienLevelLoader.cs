@@ -483,34 +483,54 @@ public class AlienLevelLoader : MonoBehaviour
 
         switch ((ShaderCategory)Shader.Header2.ShaderCategory)
         {
-            case ShaderCategory.AlienShaderCategory_Environment:
+            case ShaderCategory.CA_ENVIRONMENT:
+                toReturn.Unknown3_Index = 3;
                 toReturn.OpacityUVMultiplierIndex = 5;
                 toReturn.DiffuseUVMultiplierIndex = 6;
                 toReturn.DiffuseIndex = 7;
                 toReturn.SecondaryDiffuseUVMultiplierIndex = 8;
+                toReturn.SecondaryDiffuseIndex = 9;
                 toReturn.NormalUVMultiplierIndex = 10;
+                toReturn.NormalMapStrength0Index = 11;
                 toReturn.SecondaryNormalUVMultiplierIndex = 12;
+                toReturn.NormalMapStrength1Index = 13;
                 toReturn.SpecularFactorIndex = 14;
                 toReturn.SpecularUVMultiplierIndex = 15;
+                toReturn.MetallicFactorIndex = 16;
+                toReturn.SecondarySpecularFactorIndex = 17;
                 toReturn.SecondarySpecularUVMultiplierIndex = 18;
+                toReturn.SecondaryMetallicFactorIndex = 19;
+                toReturn.EnvironmentMapStrength2Index = 24;
+                toReturn.EnvironmentMapStrengthIndex = 25;
+                toReturn.DirtDiffuseIndex = -1; // TODO: ...
                 toReturn.OcclusionUVMultiplierIndex = 27;
-                toReturn.OpacityNoiseUVMultiplierIndex = 39;
-                toReturn.DirtMapUVMultiplierIndex = 48;
+                toReturn.OcclusionTintIndex = 28;
+                toReturn.EmissiveFactorIndex = 29;
+                toReturn.EmissiveIndex = 30;
+                toReturn.ParallaxUVMultiplierIndex = 35;
+                toReturn.ParallaxFactorIndex = 36;
+                toReturn.ParallaxOffsetIndex = 37;
+                toReturn.IsTransparentIndex = 38;
+                toReturn.OpacityNoiseUVMultiplierIndex1 = 39;
+                toReturn.OpacityNoiseAmplitudeIndex = 40;
+                toReturn.DirtMapUVMultiplier0Index = 47;
+                toReturn.DirtMapUVMultiplier1Index = 48;
+                toReturn.DirtStrengthIndex = 49;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Character:
-                toReturn.OpacityNoiseUVMultiplierIndex = 12;
+            case ShaderCategory.CA_CHARACTER:
+                toReturn.OpacityNoiseUVMultiplierIndex1 = 12;
                 toReturn.DiffuseUVMultiplierIndex = 15;
                 toReturn.DiffuseIndex = 16;
                 toReturn.SecondaryDiffuseUVMultiplierIndex = 17;
-                //toReturn.SecondaryDiffuseIndex = 18;
+                toReturn.SecondaryDiffuseIndex = 18;
                 toReturn.NormalUVMultiplierIndex = 19;
                 toReturn.SecondaryNormalUVMultiplierIndex = 21;
                 toReturn.SpecularUVMultiplierIndex = 24;
                 toReturn.SpecularFactorIndex = 25;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Skin:
+            case ShaderCategory.CA_SKIN:
                 toReturn.DiffuseUVMultiplierIndex = 4;
                 toReturn.DiffuseIndex = 5;
                 toReturn.NormalUVMultiplierIndex = 8;
@@ -518,11 +538,11 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.SecondaryNormalUVMultiplierIndex = 11;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Hair:
+            case ShaderCategory.CA_HAIR:
                 toReturn.DiffuseIndex = 2;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Eye:
+            case ShaderCategory.CA_EYE:
                 toReturn.DiffuseUVAdderIndex = 3;
                 // TODO: These three determine the iris color. They map to rgb channels of the iris map.
                 //  I am using the middle color for now for everything but we should not do that.
@@ -535,26 +555,34 @@ public class AlienLevelLoader : MonoBehaviour
                 toReturn.DiffuseSamplerIndex = 0;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Decal:
+            case ShaderCategory.CA_DECAL:
                 //toReturn.ColorIndex = 3;
                 //Material->BaseColor = {};
                 break;
 
-            case ShaderCategory.AlienShaderCategory_FogPlane:
+            case ShaderCategory.CA_FOGPLANE:
                 //toReturn.DiffuseIndex = 8;
                 //Material.BaseColor = { };
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Terrain:
+            case ShaderCategory.CA_REFRACTION:
+                toReturn.DiffuseUVMultiplierIndex = 3;
+                break;
+
+            case ShaderCategory.CA_TERRAIN:
                 toReturn.DiffuseIndex = 4;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_LightMapEnvironment:
+            case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
                 toReturn.DiffuseIndex = 12;
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Refraction:
-                toReturn.DiffuseUVMultiplierIndex = 3;
+            case ShaderCategory.CA_CAMERA_MAP:
+                //DiffuseFallback = V4(1);
+                break;
+
+            case ShaderCategory.CA_PLANET:
+                //DiffuseFallback = V4(1);
                 break;
         }
 
@@ -575,18 +603,21 @@ public class AlienLevelLoader : MonoBehaviour
 
         switch (ShaderCategory)
         {
-            case ShaderCategory.AlienShaderCategory_Particle:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
+            case ShaderCategory.CA_PARTICLE:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);      //TODO: is it really?
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
+                SlotOffsets.Add(alien_slot_ids.FLOW_MAP);         //TODO: unsure
+                SlotOffsets.Add(alien_slot_ids.FLOW_TEXTURE_MAP); //TODO: unsure
+                SlotOffsets.Add(alien_slot_ids.NONE);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Ribbon:
+            case ShaderCategory.CA_RIBBON:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Environment:
+            case ShaderCategory.CA_ENVIRONMENT:
                 SlotOffsets.Add(alien_slot_ids.OPACITY);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
@@ -605,7 +636,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_DecalEnvironment:
+            case ShaderCategory.CA_DECAL_ENVIRONMENT:
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -625,7 +656,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Character:
+            case ShaderCategory.CA_CHARACTER:
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
                 SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
                 SlotOffsets.Add(alien_slot_ids.OPACITY);
@@ -641,7 +672,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Skin:
+            case ShaderCategory.CA_SKIN:
                 SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
@@ -657,7 +688,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Hair:
+            case ShaderCategory.CA_HAIR:
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
@@ -666,7 +697,7 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Eye:
+            case ShaderCategory.CA_EYE:
                 SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
@@ -676,11 +707,11 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_SkinOcclusion:
+            case ShaderCategory.CA_SKIN_OCCLUSION:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Decal:
+            case ShaderCategory.CA_DECAL:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
@@ -696,7 +727,7 @@ public class AlienLevelLoader : MonoBehaviour
                 break;
 
                 /*
-            case ShaderCategory.AlienShaderCategory_FogPlane:
+            case ShaderCategory.CA_FOGPLANE:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 // TODO: Should be 'DiffuseMapStatic' - but I am not using that yet.  In order to keep the light cones
@@ -705,7 +736,7 @@ public class AlienLevelLoader : MonoBehaviour
                 break;
                 */
 
-            case ShaderCategory.AlienShaderCategory_Refraction:
+            case ShaderCategory.CA_REFRACTION:
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
@@ -714,14 +745,14 @@ public class AlienLevelLoader : MonoBehaviour
                 //Material->Material.BaseColor = { };
                 break;
 
-            case ShaderCategory.AlienShaderCategory_NonInteractiveWater:
+            case ShaderCategory.CA_NONINTERACTIVE_WATER:
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_LowLODCharacter:
+            case ShaderCategory.CA_LOW_LOD_CHARACTER:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
@@ -730,11 +761,11 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_LightDecal:
+            case ShaderCategory.CA_LIGHT_DECAL:
                 SlotOffsets.Add(alien_slot_ids.EMISSIVE);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_SpaceSuitVisor:
+            case ShaderCategory.CA_SPACESUIT_VISOR:
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
                 SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
@@ -744,16 +775,16 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Planet:
-                SlotOffsets.Add(alien_slot_ids.ATMOSPHERE_MAP);
+            case ShaderCategory.CA_PLANET:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);          // TODO: This is the AtmosphereMap.
                 SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);           // TODO: This is the AtmosphereNormalMap.
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);// TODO: This is the TerrainMap.
+                SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP); // TODO: This is the TerrainNormalMap.
                 SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_LightMapEnvironment:
+            case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
                 SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
@@ -766,14 +797,14 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE); //Occlusion?
+                SlotOffsets.Add(alien_slot_ids.OCCLUSION); 
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.NONE);
-                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 break;
 
-            case ShaderCategory.AlienShaderCategory_Terrain:
+            case ShaderCategory.CA_TERRAIN:
                 SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
                 SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
@@ -783,10 +814,18 @@ public class AlienLevelLoader : MonoBehaviour
                 SlotOffsets.Add(alien_slot_ids.NONE);
                 SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
                 SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                SlotOffsets.Add(alien_slot_ids.NONE);
+                SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
+                break;
+
+            case ShaderCategory.CA_CAMERA_MAP:
+                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
                 break;
 
             //Unsupported shader slot types - draw transparent for now
+            case ShaderCategory.CA_SHADOWCASTER:
+            case ShaderCategory.CA_DEFERRED:
+            case ShaderCategory.CA_DEBUG:
+            case ShaderCategory.CA_OCCLUSION_CULLING:
             default:
                 toReturn.name += " (NOT RENDERED: " + ShaderCategory.ToString() + ")";
                 toReturn.color = new Color(0,0,0,0);
@@ -951,6 +990,7 @@ public class AlienLevelLoader : MonoBehaviour
         LIQUIFY2,
         COLOR_RAMP,
         FLOW_MAP,
+        FLOW_TEXTURE_MAP,
         ALPHA_MASK,
         LOW_LOD_CHARACTER_MASK,
         UNSCALED_DIRT_MAP,
@@ -973,21 +1013,41 @@ public class GameObjectHolder
 
 class MaterialPropertyIndex
 {
+    public UInt16 DiffuseSamplerIndex = 1; 
     public int OpacityUVMultiplierIndex = -1;
     public int DiffuseUVMultiplierIndex = -1;
     public int DiffuseUVAdderIndex = -1;
-    public UInt16 DiffuseSamplerIndex = 1;
     public int SpecularFactorIndex = -1;
+    public int MetallicFactorIndex = -1;
     public int SecondaryDiffuseUVMultiplierIndex = -1;
     public int NormalUVMultiplierIndex = -1;
     public int NormalUVMultiplierOfMultiplierIndex = -1;
+    public int NormalMapStrength0Index = -1;
+    public int NormalMapStrength1Index = -1;
     public int SecondaryNormalUVMultiplierIndex = -1;
     public int SpecularUVMultiplierIndex = -1;
     public int SecondarySpecularUVMultiplierIndex = -1;
-    public int DirtMapUVMultiplierIndex = -1;
-    public int OpacityNoiseUVMultiplierIndex = -1;
+    public int SecondarySpecularFactorIndex = -1;
+    public int SecondaryMetallicFactorIndex = -1;
+    public int DirtMapUVMultiplier0Index = -1;
+    public int DirtMapUVMultiplier1Index = -1;
+    public int DirtDiffuseIndex = -1;
+    public int DirtStrengthIndex = -1;
+    public int EmissiveFactorIndex = -1;
+    public int EmissiveIndex = -1;
+    public int EnvironmentMapStrengthIndex = -1;
+    public int OpacityNoiseUVMultiplierIndex1 = -1;
+    public int OpacityNoiseAmplitudeIndex = -1;
     public int DiffuseIndex = -1;
+    public int SecondaryDiffuseIndex = -1;
     public int OcclusionUVMultiplierIndex = -1;
+    public int OcclusionTintIndex = -1;
+    public int IsTransparentIndex = -1;
+    public int EnvironmentMapStrength2Index = -1;
+    public int Unknown3_Index = -1;
+    public int ParallaxUVMultiplierIndex = -1;
+    public int ParallaxFactorIndex = -1;
+    public int ParallaxOffsetIndex = -1;
 }
 
 public class AlienTexture
