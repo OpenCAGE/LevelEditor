@@ -6,10 +6,10 @@ namespace CathodeLib
 {
     public class AlienLevel
     {
-        public static alien_level Load(string LEVEL_NAME, string ENV_PATH)
+        public static alien_level Load(string LEVEL_NAME, string ALIEN_PATH)
         {
             alien_level Result = new alien_level();
-            string levelPath = ENV_PATH + "/PRODUCTION/" + LEVEL_NAME;
+            string levelPath = ALIEN_PATH + "/PRODUCTION/" + LEVEL_NAME;
             /*** WORLD ***/
 
             Result.ModelsMVR = new Movers(levelPath + "/WORLD/MODELS.MVR");

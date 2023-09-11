@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -24,6 +25,9 @@ public class WebsocketClient : MonoBehaviour
 
     private string labelToShow = "";
 
+    private string _pathToAI = "";
+    public string PathToAI => _pathToAI;
+
     void Start()
     {
         loader = GetComponent<AlienLevelLoader>();
@@ -36,7 +40,6 @@ public class WebsocketClient : MonoBehaviour
         {
             if (loader.CurrentLevelName != levelToLoad)
                 loader.LoadLevel(levelToLoad);
-            SendMessage(MessageType.REPORT_LOADED_LEVEL, "");
             shouldLoad = false;
         }
         if (shouldRepositionCam)
@@ -72,70 +75,40 @@ public class WebsocketClient : MonoBehaviour
 
     private void OnMessage(object sender, MessageEventArgs e)
     {
-        MessageType type = (MessageType)Convert.ToInt32(e.Data.Substring(0, 1));
-        Debug.Log(type + ": " + e.Data.Substring(1));
-        switch (type)
+        WSPacket packet = JsonConvert.DeserializeObject<WSPacket>(e.Data);
+        Debug.Log(e.Data);
+
+        switch (packet.type)
         {
             case MessageType.SYNC_VERSION:
                 {
-                    if (e.Data.Substring(1) != VERSION.ToString())
+                    if (packet.version != VERSION)
                     {
                         Debug.LogError("Your Commands Editor is utilising a newer API version than this Unity client!!\nPlease update this Unity client to avoid experiencing errors.");
-                    }
-                    else
-                    {
-                        Debug.Log("Commands Editor correctly utilises API version " + VERSION + ".");
                     }
                     break;
                 }
             case MessageType.LOAD_LEVEL:
                 {
                     mutex.WaitOne();
-                    levelToLoad = e.Data.Substring(1);
+                    levelToLoad = packet.level_name;
+                    _pathToAI = packet.alien_path;
                     shouldLoad = true;
                     mutex.ReleaseMutex();
-                    break;
-                }
-            case MessageType.LOAD_LEVEL_AT_POSITION:
-                {
-                    mutex.WaitOne();
-                    string[] content = e.Data.Substring(1).Split('>');
-                    levelToLoad = content[0];
-                    camPosition = new Vector3(Convert.ToSingle(content[1]), Convert.ToSingle(content[2]), Convert.ToSingle(content[3]));
-                    shouldLoad = true;
-                    shouldRepositionCam = true;
-                    mutex.ReleaseMutex();
-                    break;
-                }
-            case MessageType.REPORT_LOADED_LEVEL:
-                {
-                    SendMessage(MessageType.REPORTING_LOADED_LEVEL, levelToLoad);
                     break;
                 }
             case MessageType.GO_TO_POSITION:
                 {
                     mutex.WaitOne();
-                    string[] content = e.Data.Substring(1).Split('>');
-                    camPosition = new Vector3(Convert.ToSingle(content[0]), Convert.ToSingle(content[1]), Convert.ToSingle(content[2]));
+                    camPosition = packet.position;
                     shouldRepositionCam = true;
-                    mutex.ReleaseMutex();
-                    break;
-                }
-            case MessageType.GO_TO_REDS:
-                {
-                    mutex.WaitOne();
-                    string[] content = e.Data.Substring(1).Split('>');
-                    List<int> cont = new List<int>();
-                    for (int i = 0; i < content.Length; i++) cont.Add(Convert.ToInt32(content[i]));
-                    redsIndex = cont.ToArray();
-                    shouldFocusOnReds = true;
                     mutex.ReleaseMutex();
                     break;
                 }
             case MessageType.SHOW_ENTITY_NAME:
                 {
                     mutex.WaitOne();
-                    labelToShow = e.Data.Substring(1);
+                    labelToShow = packet.entity_name;
                     mutex.ReleaseMutex();
                     break;
                 }
@@ -144,7 +117,7 @@ public class WebsocketClient : MonoBehaviour
 
     private void OnClose(object sender, CloseEventArgs e)
     {
-        Debug.Log("Websocket CLOSED");
+
     }
     private IEnumerator ReconnectLoop()
     {
@@ -178,35 +151,44 @@ public class WebsocketClient : MonoBehaviour
                 yield return new WaitForEndOfFrame();
 
             client.Close();
+
+            Debug.LogWarning("Disconnected from Commands Editor!");
         }
 
     }
 
     private void Client_OnOpen(object sender, EventArgs e)
     {
-        Debug.Log("Websocket OPEN");
+
     }
 
-    public void SendMessage(MessageType type, string content)
+    public void SendMessage(WSPacket content)
     {
-        client.Send(((int)type).ToString() + content);
+        client.Send(JsonConvert.SerializeObject(content));
     }
 
-    //TODO: Keep this in sync with server
-    public const int VERSION = 1;
+    //TODO: Keep this in sync with clients
+    public const int VERSION = 2;
     public enum MessageType
     {
         SYNC_VERSION,
 
         LOAD_LEVEL,
-        LOAD_LEVEL_AT_POSITION,
-
         GO_TO_POSITION,
-        GO_TO_REDS,
-
         SHOW_ENTITY_NAME,
+    }
+    public class WSPacket
+    {
+        public MessageType type;
 
-        REPORT_LOADED_LEVEL,
-        REPORTING_LOADED_LEVEL,
+        public int version;
+
+        public string level_name;
+        public string alien_path;
+
+        public Vector3 position;
+        public Vector3 rotation;
+
+        public string entity_name;
     }
 }

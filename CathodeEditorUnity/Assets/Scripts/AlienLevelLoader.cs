@@ -22,7 +22,7 @@ public class AlienLevelLoader : MonoBehaviour
     public GameObject CurrentLevelGameObject { get { return levelParent; } }
 
     private alien_level Result = null;
-    private Textures GlobalTextures;
+    private Textures GlobalTextures = null;
 
     private GameObject levelParent = null;
 
@@ -34,31 +34,11 @@ public class AlienLevelLoader : MonoBehaviour
     static readonly ProfilerMarker marker_LoadAssets = new ProfilerMarker("LOADER.LoadingAssets");
     static readonly ProfilerMarker marker_Populating = new ProfilerMarker("LOADER.PopulatingLevel");
 
+    private WebsocketClient _client;
+
     void Start()
     {
-        /*
-        CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_HUB\WORLD\MODELS.MVR");
-        for (int i =0; i < mvr.EntryCount; i++)
-        {
-            CATHODE.Models.alien_mvr_entry entry = mvr.GetEntry(i);
-            entry.IsThisTypeID = 6;
-            mvr.SetEntry(i, entry);
-        }
-        mvr.Save();
-        return;
-        */
-
-        //Load global assets
-        GlobalTextures = new Textures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK");
-        //alien_pak2 GlobalAnimations;
-        //alien_anim_string_db GlobalAnimationsStrings;
-
-        //Load level stuff
-        //LoadLevel(LEVEL_NAME);
-
-
-
-        //LoadLevel(SharedVals.instance.LevelName);
+        _client = GetComponent<WebsocketClient>();
     }
 
     public void LoadLevel(string level)
@@ -67,8 +47,11 @@ public class AlienLevelLoader : MonoBehaviour
         if (levelParent != null) Destroy(levelParent);
         marker_LoadAssets.Begin();
 
+        if (GlobalTextures == null)
+            GlobalTextures = new Textures(_client.PathToAI + "/DATA/ENV/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK");
+
         //Load level assets
-        Result = AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
+        Result = AlienLevel.Load(LEVEL_NAME, _client.PathToAI + "/DATA/ENV/");
 
         //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
         LoadedTexturesGlobal = new AlienTexture[GlobalTextures.Entries.Count];
@@ -290,6 +273,8 @@ public class AlienLevelLoader : MonoBehaviour
                 case ShaderCategory.CA_FOGSPHERE:
                 case ShaderCategory.CA_FOGPLANE:
                 case ShaderCategory.CA_EFFECT_OVERLAY:
+                case ShaderCategory.CA_DECAL:
+                case ShaderCategory.CA_VOLUME_LIGHT:
                     toReturn.name += " (NOT RENDERED: " + metadata.shaderCategory.ToString() + ")";
                     toReturn.color = new Color(0, 0, 0, 0);
                     toReturn.SetFloat("_Mode", 1.0f);

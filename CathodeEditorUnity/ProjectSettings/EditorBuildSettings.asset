@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/websocket.unity
+    path: Assets/Scene.unity
     guid: fb6f1c497c254f346ac26080dedd611a
   - enabled: 0
     path: Assets/Scenes/TextureEditor.unity
