@@ -2,102 +2,70 @@ using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
 using System.IO;
-using System;
 using CathodeLib;
 using CATHODE.LEGACY;
 using static CATHODE.LEGACY.ShadersPAK;
+using System.Threading.Tasks;
+using CATHODE.Scripting;
 using System.Linq;
-using Unity.Profiling;
+using UnityEditor.Experimental.GraphView;
+using CATHODE.Scripting.Internal;
+using UnityEngine.UIElements;
 
 public class AlienLevelLoader : MonoBehaviour
 {
-    [SerializeField] private bool LOAD_COMMANDS_PAK = false;
-    [SerializeField] private string LEVEL_NAME = "BSP_TORRENS";
+    private string _levelName = "BSP_TORRENS";
+    public string LevelName => _levelName;
 
-    public delegate void LoadedEvent(alien_level data);
-    public LoadedEvent LevelLoadCompleted;
+    private GameObject _loadedCompositeGO = null;
+    private Composite _loadedComposite = null;
+    public string CompositeName => _loadedComposite?.name;
 
-    public alien_level CurrentLevel { get { return Result; } }
-    public string CurrentLevelName { get { return LEVEL_NAME; } }
-    public GameObject CurrentLevelGameObject { get { return levelParent; } }
+    private LevelContent _levelContent = null;
+    private Textures _globalTextures = null;
 
-    private alien_level Result = null;
-    private Textures GlobalTextures;
+    private Dictionary<int, Texture2D> _texturesGlobal = new Dictionary<int, Texture2D>();
+    private Dictionary<int, Texture2D> _texturesLevel = new Dictionary<int, Texture2D>();
+    private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
+    private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
 
-    private GameObject levelParent = null;
-
-    private AlienTexture[] LoadedTexturesGlobal;
-    private AlienTexture[] LoadedTexturesLevel;
-    private GameObjectHolder[] LoadedModels;
-    private Material[] LoadedMaterials;
-
-    static readonly ProfilerMarker marker_LoadAssets = new ProfilerMarker("LOADER.LoadingAssets");
-    static readonly ProfilerMarker marker_Populating = new ProfilerMarker("LOADER.PopulatingLevel");
+    private WebsocketClient _client;
 
     void Start()
     {
-        /*
-        CATHODE.Models.ModelsMVR mvr = new CATHODE.Models.ModelsMVR(@"G:\SteamLibrary\steamapps\common\Alien Isolation\DATA\ENV\PRODUCTION\TECH_HUB\WORLD\MODELS.MVR");
-        for (int i =0; i < mvr.EntryCount; i++)
-        {
-            CATHODE.Models.alien_mvr_entry entry = mvr.GetEntry(i);
-            entry.IsThisTypeID = 6;
-            mvr.SetEntry(i, entry);
-        }
-        mvr.Save();
-        return;
-        */
+        _client = GetComponent<WebsocketClient>();
+    }
 
-        //Load global assets
-        GlobalTextures = new Textures(SharedVals.instance.PathToEnv + "/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK");
-        //alien_pak2 GlobalAnimations;
-        //alien_anim_string_db GlobalAnimationsStrings;
+    private void ResetLevel()
+    {
+        if (_loadedCompositeGO != null)
+            Destroy(_loadedCompositeGO);
 
-        //Load level stuff
-        //LoadLevel(LEVEL_NAME);
+        _texturesGlobal.Clear();
+        _texturesLevel.Clear();
+        _materials.Clear();
+        _modelGOs.Clear();
 
+        _levelContent = null;
 
-
-        //LoadLevel(SharedVals.instance.LevelName);
+        if (_globalTextures == null)
+            _globalTextures = new Textures(_client.PathToAI + "/DATA/ENV/GLOBAL/WORLD/GLOBAL_TEXTURES.ALL.PAK");
     }
 
     public void LoadLevel(string level)
     {
-        LEVEL_NAME = level;
-        if (levelParent != null) Destroy(levelParent);
-        marker_LoadAssets.Begin();
+        Debug.Log("Loading level " + level + "...");
 
-        //Load level assets
-        Result = AlienLevel.Load(LEVEL_NAME, SharedVals.instance.PathToEnv);
+        ResetLevel();
 
-        //Load all textures - TODO: flip array and load V2 first? - I suspect V1 is first as A:I loads V1s passively throughout, and then V2s by zone
-        LoadedTexturesGlobal = new AlienTexture[GlobalTextures.Entries.Count];
-        LoadedTexturesLevel = new AlienTexture[Result.LevelTextures.Entries.Count];
-        bool[] TextureLoadTrackerGlobal = new bool[GlobalTextures.Entries.Count];
-        bool[] TextureLoadTrackerLevel = new bool[Result.LevelTextures.Entries.Count];
-        for (int i = 0; i < GlobalTextures.Entries.Count; i++)
-        {
-            LoadedTexturesGlobal[i] = LoadTexture(i, 2, !TextureLoadTrackerGlobal[i]);
-            TextureLoadTrackerGlobal[i] = true;
-        }
-        for (int i = 0; i < Result.LevelTextures.Entries.Count; i++)
-        {
-            LoadedTexturesLevel[i] = LoadTexture(i, 0, !TextureLoadTrackerLevel[i]);
-            TextureLoadTrackerLevel[i] = true;
-        }
-
-        //Load all materials
-        LoadedMaterials = new Material[99999];
-        //for (int i = 0; i < Result.ModelsMTL.Entries.Count; i++) LoadMaterial(i);
-
-        //Load all models
-        LoadedModels = new GameObjectHolder[99999];
-        //for (int i = 0; i < Result.ModelsPAK.Entries.Count; i++) LoadModel(i);
+        _levelName = level;
+        _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
 
         //Set skybox
+        /*
         for (int i = 0; i < LoadedTexturesGlobal.Length; i++)
         {
-            if (LoadedTexturesGlobal[i].IsCubemap)
+            if (LoadedTexturesGlobal[i] != null && LoadedTexturesGlobal[i].IsCubemap)
             {
                 Material toReturn = new Material(UnityEngine.Shader.Find("Skybox/Cubemap"));
                 toReturn.SetTexture("_Tex", LoadedTexturesGlobal[i].cubemap);
@@ -105,51 +73,157 @@ public class AlienLevelLoader : MonoBehaviour
                 break;
             }
         }
+        */
 
-        //Populate the level with "movers"
-        marker_LoadAssets.End();
-        marker_Populating.Begin();
-        levelParent = new GameObject(LEVEL_NAME);
-        for (int i = 0; i < Result.ModelsMVR.Entries.Count; i++)
+        //TODO: we should load a combination of Commands and MVR data when loading the root composite (or instances from root composite)
+        //      ... other than that we should just load from Commands
+
+        //LoadMVR();
+        //LoadCommands();
+    }
+    public void LoadComposite(string name)
+    {
+        if (_loadedCompositeGO != null)
+            Destroy(_loadedCompositeGO);
+        _loadedCompositeGO = new GameObject(_levelName);
+
+        Debug.Log("Loading composite " + name + "...");
+        LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
+    }
+
+    /* Load MVR data */
+    private void LoadMVR()
+    {
+        for (int i = 0; i < _levelContent.ModelsMVR.Entries.Count; i++)
         {
-            GameObject thisParent = new GameObject("MVR: " + i + "/" + Result.ModelsMVR.Entries[i].renderableElementIndex + "/" + Result.ModelsMVR.Entries[i].renderableElementCount);
-            Matrix4x4 m = Result.ModelsMVR.Entries[i].transform;
+            GameObject thisParent = new GameObject("MVR: " + i + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementIndex + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementCount);
+            Matrix4x4 m = _levelContent.ModelsMVR.Entries[i].transform;
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
             thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
-            thisParent.transform.parent = levelParent.transform;
-            for (int x = 0; x < Result.ModelsMVR.Entries[i].renderableElementCount; x++)
+            thisParent.transform.parent = _loadedCompositeGO.transform;
+            for (int x = 0; x < _levelContent.ModelsMVR.Entries[i].renderableElementCount; x++)
             {
-                RenderableElements.Element RenderableElement = Result.RenderableREDS.Entries[(int)Result.ModelsMVR.Entries[i].renderableElementIndex + x];
+                RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
             }
         }
-        marker_Populating.End();
-
-        //Pull content from COMMANDS
-        //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
-        //StartCoroutine(cmdLoader.LoadCommandsPAK(levelPath));
-
-        LevelLoadCompleted?.Invoke(Result);
     }
 
-    //first saving attempt
-    public void SaveLevel()
+    /* Load Commands data */
+    private void LoadCommands(Composite composite)
     {
-        for (int i = 0; i < levelParent.transform.childCount; i++)
+        _loadedComposite = composite;
+        ParseComposite(composite, _loadedCompositeGO, Vector3.zero, Quaternion.identity, new List<AliasEntity>());
+    }
+    void ParseComposite(Composite composite, GameObject parentGO, Vector3 parentPos, Quaternion parentRot, List<AliasEntity> aliases)
+    {
+        if (composite == null) return;
+        GameObject compositeGO = new GameObject(composite.name);
+        compositeGO.transform.parent = parentGO.transform;
+        compositeGO.transform.SetLocalPositionAndRotation(parentPos, parentRot);
+
+        //Compile all appropriate overrides, and keep the hierarchies trimmed so that index zero is accurate to this composite
+        List<AliasEntity> trimmedAliases = new List<AliasEntity>();
+        for (int i = 0; i < aliases.Count; i++)
         {
-            GameObject mvrEntry = levelParent.transform.GetChild(i).gameObject;
-            if (mvrEntry.name.Substring(5).Split('/')[0] != i.ToString()) Debug.LogWarning("Something wrong!");
-
-            Result.ModelsMVR.Entries[i].transform = mvrEntry.transform.localToWorldMatrix;
+            aliases[i].alias.path.RemoveAt(0);
+            if (aliases[i].alias.path.Count != 0)
+                trimmedAliases.Add(aliases[i]);
         }
+        trimmedAliases.AddRange(composite.aliases);
+        aliases = trimmedAliases;
 
-        Result.ModelsMVR.Save();
+        //Parse all functions in this composite & handle them appropriately
+        foreach (FunctionEntity function in composite.functions)
+        {
+            //Jump through to the next composite
+            if (!CommandsUtils.FunctionTypeExists(function.function))
+            {
+                Composite compositeNext = _levelContent.CommandsPAK.GetComposite(function.function);
+                if (compositeNext != null)
+                {
+                    //Find all overrides that are appropriate to take through to the next composite
+                    List<AliasEntity> overridesNext = trimmedAliases.FindAll(o => o.alias.path[0] == function.shortGUID);
+
+                    //Work out our position, accounting for overrides
+                    Vector3 position, rotation;
+                    AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
+                    GetEntityTransform(ovrride, out position, out rotation);
+                    if (position == Vector3.zero && rotation == Vector3.zero)
+                        GetEntityTransform(function, out position, out rotation);
+
+                    //Continue
+                    ParseComposite(compositeNext, compositeGO, position, Quaternion.Euler(rotation), overridesNext);
+                }
+            }
+
+            //Parse model data
+            else if (CommandsUtils.GetFunctionType(function.function) == FunctionType.ModelReference)
+            {
+                //Work out our position, accounting for overrides
+                Vector3 position, rotation;
+                AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
+                GetEntityTransform(ovrride, out position, out rotation);
+                if (position == Vector3.zero && rotation == Vector3.zero)
+                    GetEntityTransform(function, out position, out rotation);
+
+                GameObject nodeModel = new GameObject(function.shortGUID.ToByteString());
+                nodeModel.transform.parent = compositeGO.transform;
+                nodeModel.transform.SetLocalPositionAndRotation(position, Quaternion.Euler(rotation));
+
+                Parameter resourceParam = function.GetParameter("resource");
+                if (resourceParam != null && resourceParam.content != null)
+                {
+                    switch (resourceParam.content.dataType)
+                    {
+                        case DataType.RESOURCE:
+                            cResource resource = (cResource)resourceParam.content;
+                            foreach (ResourceReference resourceRef in resource.value)
+                            {
+                                for (int i = 0; i < resourceRef.count; i++)
+                                {
+                                    RenderableElements.Element renderable = _levelContent.RenderableREDS.Entries[resourceRef.index + i];
+                                    switch (resourceRef.entryType)
+                                    {
+                                        case ResourceType.RENDERABLE_INSTANCE:
+                                            SpawnModel(renderable.ModelIndex, renderable.MaterialIndex, nodeModel);
+                                            break;
+                                        case ResourceType.COLLISION_MAPPING:
+                                            break;
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+    }
+    void GetEntityTransform(Entity entity, out Vector3 position, out Vector3 rotation)
+    {
+        position = Vector3.zero;
+        rotation = Vector3.zero;
+        if (entity == null) return;
+
+        Parameter positionParam = entity.GetParameter("position");
+        if (positionParam != null && positionParam.content != null)
+        {
+            switch (positionParam.content.dataType)
+            {
+                case DataType.TRANSFORM:
+                    cTransform transform = (cTransform)positionParam.content;
+                    position = transform.position;
+                    rotation = transform.rotation;
+                    break;
+            }
+        }
     }
 
+    #region Asset Handlers
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
-        GameObjectHolder holder = LoadModel(binIndex);
+        GameObjectHolder holder = GetModel(binIndex);
         if (holder == null)
         {
             Debug.Log("Attempted to load non-parsed model (" + binIndex + "). Skipping!");
@@ -162,478 +236,149 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.transform.localRotation = Quaternion.identity;
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
 
         //todo apply mvr colour scale here
     }
 
-    private AlienTexture LoadTexture(int EntryIndex, int paktype = 0, bool loadV1 = true)
+    private Texture2D GetTexture(int index, bool global)
     {
-        AlienTexture toReturn = new AlienTexture();
-
-        Textures AlienTextures = GetTexturesTable(paktype); 
-        if (EntryIndex < 0 || EntryIndex >= AlienTextures.Entries.Count)
+        if ((global && !_texturesGlobal.ContainsKey(index)) || (!global && !_texturesLevel.ContainsKey(index)))
         {
-            Debug.LogWarning("Asked to load texture at index " + EntryIndex + ", which is out of bounds!");
-            return null;
+            Textures.TEX4 InTexture = (global ? _globalTextures : _levelContent.LevelTextures).GetAtWriteIndex(index);
+            Textures.TEX4.Part TexPart = InTexture.tex_HighRes;
+
+            Vector2 textureDims;
+            int textureLength = 0;
+            int mipLevels = 0;
+
+            textureDims = new Vector2(TexPart.Width, TexPart.Height);
+            if (TexPart.Content == null || TexPart.Content.Length == 0)
+            {
+                //Debug.LogWarning("LENGTH ZERO - NOT LOADING");
+                return null;
+            }
+            textureLength = TexPart.Content.Length;
+            mipLevels = TexPart.MipLevels;
+
+            UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
+            switch (InTexture.Format)
+            {
+                case Textures.TextureFormat.DXGI_FORMAT_BC1_UNORM:
+                    format = UnityEngine.TextureFormat.DXT1;
+                    break;
+                case Textures.TextureFormat.DXGI_FORMAT_BC3_UNORM:
+                    format = UnityEngine.TextureFormat.DXT5;
+                    break;
+                case Textures.TextureFormat.DXGI_FORMAT_BC5_UNORM:
+                    format = UnityEngine.TextureFormat.BC5;
+                    break;
+                case Textures.TextureFormat.DXGI_FORMAT_BC7_UNORM:
+                    format = UnityEngine.TextureFormat.BC7;
+                    break;
+                case Textures.TextureFormat.DXGI_FORMAT_B8G8R8_UNORM:
+                    //Debug.LogWarning("BGR24 UNSUPPORTED!");
+                    return null;
+                case Textures.TextureFormat.DXGI_FORMAT_B8G8R8A8_UNORM:
+                    format = UnityEngine.TextureFormat.BGRA32;
+                    break;
+            }
+
+            Texture2D texture = null;
+            using (BinaryReader tempReader = new BinaryReader(new MemoryStream(TexPart.Content)))
+            {
+                switch (InTexture.Type)
+                {
+                    case Textures.AlienTextureType.ENVIRONMENT_MAP:
+                        break;
+                        /*
+                        Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
+                        cubemapTex.name = InTexture.Name;
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
+                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
+                        cubemapTex.Apply();
+                        */
+                        //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
+                        break;
+                    default:
+                        texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
+                        texture.name = InTexture.Name;
+                        texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
+                        texture.Apply();
+                        break;
+                }
+            }
+
+            if (global)
+                _texturesGlobal.Add(index, texture);
+            else
+                _texturesLevel.Add(index, texture);
         }
 
-        Textures.TEX4 InTexture = AlienTextures.Entries[EntryIndex];
-        Textures.TEX4.Part TexPart = loadV1 ? InTexture.tex_HighRes : InTexture.tex_LowRes;
-
-        Vector2 textureDims;
-        int textureLength = 0;
-        int mipLevels = 0;
-
-        textureDims = new Vector2(TexPart.Width, TexPart.Height);
-        if (TexPart.Content == null || TexPart.Content.Length == 0)
-        {
-            //Debug.LogWarning("LENGTH ZERO - NOT LOADING");
-            return toReturn;
-        }
-        textureLength = TexPart.Content.Length;
-        mipLevels = TexPart.MipLevels;
-
-        UnityEngine.TextureFormat format = UnityEngine.TextureFormat.BC7;
-        switch (InTexture.Format)
-        {
-            case Textures.TextureFormat.DXGI_FORMAT_BC1_UNORM:
-                format = UnityEngine.TextureFormat.DXT1;
-                break;
-            case Textures.TextureFormat.DXGI_FORMAT_BC3_UNORM:
-                format = UnityEngine.TextureFormat.DXT5;
-                break;
-            case Textures.TextureFormat.DXGI_FORMAT_BC5_UNORM:
-                format = UnityEngine.TextureFormat.BC5;
-                break;
-            case Textures.TextureFormat.DXGI_FORMAT_BC7_UNORM:
-                format = UnityEngine.TextureFormat.BC7;
-                break;
-            case Textures.TextureFormat.DXGI_FORMAT_B8G8R8_UNORM:
-                Debug.LogWarning("BGR24 UNSUPPORTED!");
-                return toReturn;
-            case Textures.TextureFormat.DXGI_FORMAT_B8G8R8A8_UNORM:
-                format = UnityEngine.TextureFormat.BGRA32;
-                break;
-        }
-
-        BinaryReader tempReader = new BinaryReader(new MemoryStream(TexPart.Content));
-
-        switch (InTexture.Type)
-        {
-            case Textures.AlienTextureType.ENVIRONMENT_MAP:
-                Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
-                cubemapTex.name = InTexture.Name;
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
-                cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
-                cubemapTex.Apply();
-                toReturn.cubemap = cubemapTex;
-                //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
-                break;
-            default:
-                Texture2D texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-                texture.name = InTexture.Name;
-                texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
-                texture.Apply();
-                toReturn.texture = texture;
-                break;
-        }
-
-        tempReader.Close();
-        return toReturn;
+        if (global)
+            return _texturesGlobal[index];
+        else
+            return _texturesLevel[index];
     }
 
-    private GameObjectHolder LoadModel(int EntryIndex)
+    private GameObjectHolder GetModel(int EntryIndex)
     {
-        if (LoadedModels[EntryIndex] == null)
+        if (!_modelGOs.ContainsKey(EntryIndex))
         {
-            Models.CS2.Component.LOD.Submesh submesh = Result.ModelsPAK.GetAtWriteIndex(EntryIndex);
+            Models.CS2.Component.LOD.Submesh submesh = _levelContent.ModelsPAK.GetAtWriteIndex(EntryIndex);
             if (submesh == null) return null;
-            Models.CS2.Component.LOD lod = Result.ModelsPAK.FindModelLODForSubmesh(submesh);
-            Models.CS2 mesh = Result.ModelsPAK.FindModelForSubmesh(submesh);
+            Models.CS2.Component.LOD lod = _levelContent.ModelsPAK.FindModelLODForSubmesh(submesh);
+            Models.CS2 mesh = _levelContent.ModelsPAK.FindModelForSubmesh(submesh);
             Mesh thisMesh = submesh.ToMesh();
 
             GameObjectHolder ThisModelPart = new GameObjectHolder();
             ThisModelPart.Name = ((mesh == null) ? "" : mesh.Name) + ": " + ((lod == null) ? "" : lod.Name);
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.DefaultMaterial = submesh.MaterialLibraryIndex;
-            LoadedModels[EntryIndex] = ThisModelPart;
+            _modelGOs.Add(EntryIndex, ThisModelPart);
         }
-
-        return LoadedModels[EntryIndex];
+        return _modelGOs[EntryIndex];
     }
 
-    private MaterialPropertyIndex GetMaterialPropertyIndex(int MaterialIndex)
+    public Material GetMaterial(int MTLIndex)
     {
-        Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MaterialIndex);
-        ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[InMaterial.UberShaderIndex];
-
-        MaterialPropertyIndex toReturn = new MaterialPropertyIndex();
-
-        switch ((ShaderCategory)Shader.Header2.ShaderCategory)
+        if (!_materials.ContainsKey(MTLIndex))
         {
-            case ShaderCategory.CA_ENVIRONMENT:
-                toReturn.Unknown3_Index = 3;
-                toReturn.OpacityUVMultiplierIndex = 5;
-                toReturn.DiffuseUVMultiplierIndex = 6;
-                toReturn.DiffuseIndex = 7;
-                toReturn.SecondaryDiffuseUVMultiplierIndex = 8;
-                toReturn.SecondaryDiffuseIndex = 9;
-                toReturn.NormalUVMultiplierIndex = 10;
-                toReturn.NormalMapStrength0Index = 11;
-                toReturn.SecondaryNormalUVMultiplierIndex = 12;
-                toReturn.NormalMapStrength1Index = 13;
-                toReturn.SpecularFactorIndex = 14;
-                toReturn.SpecularUVMultiplierIndex = 15;
-                toReturn.MetallicFactorIndex = 16;
-                toReturn.SecondarySpecularFactorIndex = 17;
-                toReturn.SecondarySpecularUVMultiplierIndex = 18;
-                toReturn.SecondaryMetallicFactorIndex = 19;
-                toReturn.EnvironmentMapStrength2Index = 24;
-                toReturn.EnvironmentMapStrengthIndex = 25;
-                toReturn.DirtDiffuseIndex = -1; // TODO: ...
-                toReturn.OcclusionUVMultiplierIndex = 27;
-                toReturn.OcclusionTintIndex = 28;
-                toReturn.EmissiveFactorIndex = 29;
-                toReturn.EmissiveIndex = 30;
-                toReturn.ParallaxUVMultiplierIndex = 35;
-                toReturn.ParallaxFactorIndex = 36;
-                toReturn.ParallaxOffsetIndex = 37;
-                toReturn.IsTransparentIndex = 38;
-                toReturn.OpacityNoiseUVMultiplierIndex1 = 39;
-                toReturn.OpacityNoiseAmplitudeIndex = 40;
-                toReturn.DirtMapUVMultiplier0Index = 47;
-                toReturn.DirtMapUVMultiplier1Index = 48;
-                toReturn.DirtStrengthIndex = 49;
-                break;
-
-            case ShaderCategory.CA_CHARACTER:
-                toReturn.OpacityNoiseUVMultiplierIndex1 = 12;
-                toReturn.DiffuseUVMultiplierIndex = 15;
-                toReturn.DiffuseIndex = 16;
-                toReturn.SecondaryDiffuseUVMultiplierIndex = 17;
-                toReturn.SecondaryDiffuseIndex = 18;
-                toReturn.NormalUVMultiplierIndex = 19;
-                toReturn.SecondaryNormalUVMultiplierIndex = 21;
-                toReturn.SpecularUVMultiplierIndex = 24;
-                toReturn.SpecularFactorIndex = 25;
-                break;
-
-            case ShaderCategory.CA_SKIN:
-                toReturn.DiffuseUVMultiplierIndex = 4;
-                toReturn.DiffuseIndex = 5;
-                toReturn.NormalUVMultiplierIndex = 8;
-                toReturn.NormalUVMultiplierOfMultiplierIndex = 10;
-                toReturn.SecondaryNormalUVMultiplierIndex = 11;
-                break;
-
-            case ShaderCategory.CA_HAIR:
-                toReturn.DiffuseIndex = 2;
-                break;
-
-            case ShaderCategory.CA_EYE:
-                toReturn.DiffuseUVAdderIndex = 3;
-                // TODO: These three determine the iris color. They map to rgb channels of the iris map.
-                //  I am using the middle color for now for everything but we should not do that.
-                //toReturn.ColorIndex = 7;
-                toReturn.DiffuseIndex = 8;
-                //toReturn.ColorIndex = 9;
-                toReturn.DiffuseUVMultiplierIndex = 10;
-
-                // TODO: This info is available in 'Shader->TextureEntries[CorrectIndex].TextureAddressMode'.
-                toReturn.DiffuseSamplerIndex = 0;
-                break;
-
-            case ShaderCategory.CA_DECAL:
-                //toReturn.ColorIndex = 3;
-                //Material->BaseColor = {};
-                break;
-
-            case ShaderCategory.CA_FOGPLANE:
-                //toReturn.DiffuseIndex = 8;
-                //Material.BaseColor = { };
-                break;
-
-            case ShaderCategory.CA_REFRACTION:
-                toReturn.DiffuseUVMultiplierIndex = 3;
-                break;
-
-            case ShaderCategory.CA_TERRAIN:
-                toReturn.DiffuseIndex = 4;
-                break;
-
-            case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
-                toReturn.DiffuseIndex = 12;
-                break;
-
-            case ShaderCategory.CA_CAMERA_MAP:
-                //DiffuseFallback = V4(1);
-                break;
-
-            case ShaderCategory.CA_PLANET:
-                //DiffuseFallback = V4(1);
-                break;
-        }
-
-        return toReturn;
-    }
-
-    public Material LoadMaterial(int MTLIndex)
-    {
-        if (LoadedMaterials[MTLIndex] == null)
-        {
-            Materials.Material InMaterial = Result.ModelsMTL.GetAtWriteIndex(MTLIndex);
-            int RemappedIndex = Result.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
-            ShadersPAK.ShaderEntry Shader = Result.ShadersPAK.Shaders[RemappedIndex];
+            Materials.Material InMaterial = _levelContent.ModelsMTL.GetAtWriteIndex(MTLIndex);
+            int RemappedIndex = _levelContent.ShadersIDXRemap.Datas[InMaterial.UberShaderIndex].Index;
+            ShadersPAK.ShaderEntry Shader = _levelContent.ShadersPAK.Shaders[RemappedIndex];
 
             Material toReturn = new Material(UnityEngine.Shader.Find("Standard"));
             toReturn.name = InMaterial.Name;
 
-            List<alien_slot_ids> SlotOffsets = new List<alien_slot_ids>();
-            ShaderCategory ShaderCategory = (ShaderCategory)Shader.Header2.ShaderCategory;
+            ShaderMaterialMetadata metadata = _levelContent.ShadersPAK.GetMaterialMetadataFromShader(InMaterial, _levelContent.ShadersIDXRemap);
 
-            switch (ShaderCategory)
+            switch (metadata.shaderCategory)
             {
-                case ShaderCategory.CA_PARTICLE:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);      //TODO: is it really?
-                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
-                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);         //TODO: unsure
-                    SlotOffsets.Add(alien_slot_ids.FLOW_TEXTURE_MAP); //TODO: unsure
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    break;
-
-                case ShaderCategory.CA_RIBBON:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP_MAP);
-                    break;
-
-                case ShaderCategory.CA_ENVIRONMENT:
-                    SlotOffsets.Add(alien_slot_ids.OPACITY);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.FRESNEL_LUT);
-                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.WETNESS_NOISE);
-                    break;
-
-                case ShaderCategory.CA_DECAL_ENVIRONMENT:
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                    break;
-
-                case ShaderCategory.CA_CHARACTER:
-                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                    break;
-
-                case ShaderCategory.CA_SKIN:
-                    SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.WRINKLE_MASK);
-                    SlotOffsets.Add(alien_slot_ids.WRINKLE_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                    break;
-
-                case ShaderCategory.CA_HAIR:
-                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    break;
-
-                case ShaderCategory.CA_EYE:
-                    SlotOffsets.Add(alien_slot_ids.CONVOLVED_DIFFUSE);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);//IrisMap
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);//VeinsMap
-                    SlotOffsets.Add(alien_slot_ids.SCATTER_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                    break;
-
-                case ShaderCategory.CA_SKIN_OCCLUSION:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    break;
-
-                    /*
-                case ShaderCategory.CA_DECAL:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.EMISSIVE);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                    SlotOffsets.Add(alien_slot_ids.BURN_THROUGH);
-                    SlotOffsets.Add(alien_slot_ids.LIQUIFY);
-                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                    SlotOffsets.Add(alien_slot_ids.LIQUIFY2);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.COLOR_RAMP);
-                    break;
-                    */
-
-                /*
-            case ShaderCategory.CA_FOGPLANE:
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                // TODO: Should be 'DiffuseMapStatic' - but I am not using that yet.  In order to keep the light cones
-                //  visually appealing and not slabs of solid white, I am using normal diffuse for now.
-                SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP_STATIC);
-                break;
-                */
-
-                case ShaderCategory.CA_REFRACTION:
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
-                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ALPHA_THRESHOLD);
-                    //Material->Material.BaseColor = { };
-                    break;
-
-                case ShaderCategory.CA_NONINTERACTIVE_WATER:
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ALPHA_MASK);
-                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                    break;
-
-                case ShaderCategory.CA_LOW_LOD_CHARACTER:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.LOW_LOD_CHARACTER_MASK);
-                    SlotOffsets.Add(alien_slot_ids.IRRADIANCE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    break;
-
-                case ShaderCategory.CA_LIGHT_DECAL:
-                    SlotOffsets.Add(alien_slot_ids.EMISSIVE);
-                    break;
-
-                case ShaderCategory.CA_SPACESUIT_VISOR:
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.MASKING_MAP);
-                    SlotOffsets.Add(alien_slot_ids.FACE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.UNSCALED_DIRT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                    break;
-
-                case ShaderCategory.CA_PLANET:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);          // TODO: This is the AtmosphereMap.
-                    SlotOffsets.Add(alien_slot_ids.DETAIL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);           // TODO: This is the AtmosphereNormalMap.
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);// TODO: This is the TerrainMap.
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP); // TODO: This is the TerrainNormalMap.
-                    SlotOffsets.Add(alien_slot_ids.FLOW_MAP);
-                    break;
-
-                case ShaderCategory.CA_LIGHTMAP_ENVIRONMENT:
-                    SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.DIRT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY);
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.OCCLUSION);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.PARALLAX_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    break;
-
-                case ShaderCategory.CA_TERRAIN:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_DIFFUSE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_NORMAL_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.SECONDARY_SPECULAR_MAP);
-                    SlotOffsets.Add(alien_slot_ids.NONE);
-                    SlotOffsets.Add(alien_slot_ids.OPACITY_NOISE_MAP);
-                    SlotOffsets.Add(alien_slot_ids.ENVIRONMENT_MAP);
-                    SlotOffsets.Add(alien_slot_ids.LIGHT_MAP);
-                    break;
-
-                case ShaderCategory.CA_CAMERA_MAP:
-                    SlotOffsets.Add(alien_slot_ids.DIFFUSE_MAP);
-                    break;
-
                 //Unsupported shader slot types - draw transparent for now
                 case ShaderCategory.CA_SHADOWCASTER:
                 case ShaderCategory.CA_DEFERRED:
                 case ShaderCategory.CA_DEBUG:
                 case ShaderCategory.CA_OCCLUSION_CULLING:
-                default:
-                    toReturn.name += " (NOT RENDERED: " + ShaderCategory.ToString() + ")";
+                case ShaderCategory.CA_FOGSPHERE:
+                case ShaderCategory.CA_FOGPLANE:
+                case ShaderCategory.CA_EFFECT_OVERLAY:
+                case ShaderCategory.CA_DECAL:
+                case ShaderCategory.CA_VOLUME_LIGHT:
+                case ShaderCategory.CA_REFRACTION:
+                    toReturn.name += " (NOT RENDERED: " + metadata.shaderCategory.ToString() + ")";
                     toReturn.color = new Color(0, 0, 0, 0);
                     toReturn.SetFloat("_Mode", 1.0f);
                     toReturn.EnableKeyword("_ALPHATEST_ON");
-                    LoadedMaterials[MTLIndex] = toReturn;
-                    return LoadedMaterials[MTLIndex];
+                    return toReturn;
             }
-            toReturn.name += " " + ShaderCategory.ToString();
+            toReturn.name += " " + metadata.shaderCategory.ToString();
 
-            List<Texture> availableTextures = new List<Texture>();
+            List<Texture2D> availableTextures = new List<Texture2D>();
             for (int SlotIndex = 0; SlotIndex < Shader.Header.TextureLinkCount; ++SlotIndex)
             {
                 int PairIndex = Shader.TextureLinks[SlotIndex];
@@ -641,18 +386,7 @@ public class AlienLevelLoader : MonoBehaviour
                 if (PairIndex < InMaterial.TextureReferences.Length)
                 {
                     Materials.Material.Texture Pair = InMaterial.TextureReferences[PairIndex];
-                    switch (Pair.Source)
-                    {
-                        case Materials.Material.Texture.TextureSource.LEVEL:
-                            availableTextures.Add(Pair.BinIndex == -1 ? null : LoadedTexturesLevel[Pair.BinIndex]?.texture);
-                            break;
-                        case Materials.Material.Texture.TextureSource.GLOBAL:
-                            availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex]?.texture);
-                            break;
-                        default:
-                            availableTextures.Add(null);
-                            break;
-                    }
+                    availableTextures.Add(Pair.BinIndex == -1 ? null : GetTexture(Pair.BinIndex, Pair.Source == Materials.Material.Texture.TextureSource.GLOBAL));
                 }
                 else
                 {
@@ -661,36 +395,36 @@ public class AlienLevelLoader : MonoBehaviour
             }
 
             //Apply materials
-            for (int i = 0; i < SlotOffsets.Count; i++)
+            for (int i = 0; i < metadata.textures.Count; i++)
             {
                 if (i >= availableTextures.Count) continue;
-                switch (SlotOffsets[i])
+                switch (metadata.textures[i].Type)
                 {
-                    case alien_slot_ids.DIFFUSE_MAP:
+                    case ShaderSlot.DIFFUSE_MAP:
                         toReturn.SetTexture("_MainTex", availableTextures[i]);
                         break;
-                    case alien_slot_ids.DETAIL_MAP:
+                    case ShaderSlot.DETAIL_MAP:
                         toReturn.EnableKeyword("_DETAIL_MULX2");
                         toReturn.SetTexture("_DetailMask", availableTextures[i]);
                         break;
-                    case alien_slot_ids.EMISSIVE:
+                    case ShaderSlot.EMISSIVE:
                         toReturn.EnableKeyword("_EMISSION");
                         toReturn.SetTexture("_EmissionMap", availableTextures[i]);
                         break;
-                    case alien_slot_ids.PARALLAX_MAP:
+                    case ShaderSlot.PARALLAX_MAP:
                         toReturn.EnableKeyword("_PARALLAXMAP");
                         toReturn.SetTexture("_ParallaxMap", availableTextures[i]);
                         break;
-                    case alien_slot_ids.OCCLUSION:
+                    case ShaderSlot.OCCLUSION:
                         toReturn.SetTexture("_OcclusionMap", availableTextures[i]);
                         break;
-                    case alien_slot_ids.SPECULAR_MAP:
+                    case ShaderSlot.SPECULAR_MAP:
                         toReturn.EnableKeyword("_METALLICGLOSSMAP");
                         toReturn.SetTexture("_MetallicGlossMap", availableTextures[i]); //TODO _SPECGLOSSMAP?
                         toReturn.SetFloat("_Glossiness", 0.0f);
                         toReturn.SetFloat("_GlossMapScale", 0.0f);
                         break;
-                    case alien_slot_ids.NORMAL_MAP:
+                    case ShaderSlot.NORMAL_MAP:
                         toReturn.EnableKeyword("_NORMALMAP");
                         toReturn.SetTexture("_BumpMap", availableTextures[i]);
                         break;
@@ -698,60 +432,59 @@ public class AlienLevelLoader : MonoBehaviour
             }
 
             //Apply properties
-            MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
-            BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsMTL.CSTData[2]));
-            int baseOffset = (InMaterial.ConstantBuffers[2].Offset * 4);
-            if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
+            using (BinaryReader cstReader = new BinaryReader(new MemoryStream(_levelContent.ModelsMTL.CSTData[2])))
             {
-                Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
-                toReturn.SetColor("_Color", colour);
-                if (colour.w != 1)
+                int baseOffset = (InMaterial.ConstantBuffers[2].Offset * 4);
+                if (CSTIndexValid(metadata.cstIndexes.DiffuseIndex, ref Shader))
                 {
-                    toReturn.SetFloat("_Mode", 1.0f);
-                    toReturn.EnableKeyword("_ALPHATEST_ON");
+                    Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseIndex] * 4));
+                    toReturn.SetColor("_Color", colour);
+                    if (colour.w != 1)
+                    {
+                        toReturn.SetFloat("_Mode", 1.0f);
+                        toReturn.EnableKeyword("_ALPHATEST_ON");
+                    }
+                }
+                if (CSTIndexValid(metadata.cstIndexes.DiffuseUVMultiplierIndex, ref Shader))
+                {
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseUVMultiplierIndex] * 4));
+                    toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                }
+                if (CSTIndexValid(metadata.cstIndexes.DiffuseUVAdderIndex, ref Shader))
+                {
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseUVAdderIndex] * 4));
+                    toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
+                }
+                if (CSTIndexValid(metadata.cstIndexes.NormalUVMultiplierIndex, ref Shader))
+                {
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.NormalUVMultiplierIndex] * 4));
+                    toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
+                    toReturn.SetFloat("_BumpScale", offset);
+                }
+                if (CSTIndexValid(metadata.cstIndexes.OcclusionUVMultiplierIndex, ref Shader))
+                {
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.OcclusionUVMultiplierIndex] * 4));
+                    toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
+                }
+                if (CSTIndexValid(metadata.cstIndexes.SpecularUVMultiplierIndex, ref Shader))
+                {
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularUVMultiplierIndex] * 4));
+                    toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
+                    toReturn.SetFloat("_GlossMapScale", offset);
+                }
+                if (CSTIndexValid(metadata.cstIndexes.SpecularFactorIndex, ref Shader))
+                {
+                    float spec = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularFactorIndex] * 4));
+                    toReturn.SetFloat("_Glossiness", spec);
+                    toReturn.SetFloat("_GlossMapScale", spec);
                 }
             }
-            if (CSTIndexValid(cstIndex.DiffuseUVMultiplierIndex, ref Shader))
-            {
-                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVMultiplierIndex] * 4));
-                toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
-            }
-            if (CSTIndexValid(cstIndex.DiffuseUVAdderIndex, ref Shader))
-            {
-                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseUVAdderIndex] * 4));
-                toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
-            }
-            if (CSTIndexValid(cstIndex.NormalUVMultiplierIndex, ref Shader))
-            {
-                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.NormalUVMultiplierIndex] * 4));
-                toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
-                toReturn.SetFloat("_BumpScale", offset);
-            }
-            if (CSTIndexValid(cstIndex.OcclusionUVMultiplierIndex, ref Shader))
-            {
-                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.OcclusionUVMultiplierIndex] * 4));
-                toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
-            }
-            if (CSTIndexValid(cstIndex.SpecularUVMultiplierIndex, ref Shader))
-            {
-                float offset = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularUVMultiplierIndex] * 4));
-                toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
-                toReturn.SetFloat("_GlossMapScale", offset);
-            }
-            if (CSTIndexValid(cstIndex.SpecularFactorIndex, ref Shader))
-            {
-                float spec = LoadFromCST<float>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.SpecularFactorIndex] * 4));
-                toReturn.SetFloat("_Glossiness", spec);
-                toReturn.SetFloat("_GlossMapScale", spec);
-            }
-            cstReader.Close();
 
-            LoadedMaterials[MTLIndex] = toReturn;
+            _materials.Add(MTLIndex, toReturn);
         }
-
-        return LoadedMaterials[MTLIndex];
+        return _materials[MTLIndex];
     }
-    private T LoadFromCST<T>(ref BinaryReader cstReader, int offset)
+    private T LoadFromCST<T>(BinaryReader cstReader, int offset)
     {
         cstReader.BaseStream.Position = offset;
         return Utilities.Consume<T>(cstReader);
@@ -760,55 +493,7 @@ public class AlienLevelLoader : MonoBehaviour
     {
         return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
     }
-
-    public Textures GetTexturesTable(int TableIndex)
-    {
-        if (TableIndex == 0) return Result.LevelTextures;
-        if (TableIndex == 2) return GlobalTextures;
-        throw new Exception("Texture bank can only be 0 or 2");
-    }
-
-    enum alien_slot_ids
-    {
-        NONE = -1,
-        DIFFUSE_MAP,
-        COLOR_RAMP_MAP,
-        SECONDARY_DIFFUSE_MAP,
-        DIFFUSE_MAP_STATIC,
-        OPACITY,
-        NORMAL_MAP,
-        SECONDARY_NORMAL_MAP,
-        SPECULAR_MAP,
-        SECONDARY_SPECULAR_MAP,
-        ENVIRONMENT_MAP,
-        OCCLUSION,
-        FRESNEL_LUT,
-        PARALLAX_MAP,
-        OPACITY_NOISE_MAP,
-        DIRT_MAP,
-        WETNESS_NOISE,
-        ALPHA_THRESHOLD,
-        IRRADIANCE_MAP,
-        CONVOLVED_DIFFUSE,
-        WRINKLE_MASK,
-        WRINKLE_NORMAL_MAP,
-        SCATTER_MAP,
-        EMISSIVE,
-        BURN_THROUGH,
-        LIQUIFY,
-        LIQUIFY2,
-        COLOR_RAMP,
-        FLOW_MAP,
-        FLOW_TEXTURE_MAP,
-        ALPHA_MASK,
-        LOW_LOD_CHARACTER_MASK,
-        UNSCALED_DIRT_MAP,
-        FACE_MAP,
-        MASKING_MAP,
-        ATMOSPHERE_MAP,
-        DETAIL_MAP,
-        LIGHT_MAP
-    }
+    #endregion
 }
 
 //Temp wrapper for GameObject while we just want it in memory
@@ -819,51 +504,73 @@ public class GameObjectHolder
     public int DefaultMaterial; 
 }
 
-class MaterialPropertyIndex
+public class LevelContent
 {
-    public UInt16 DiffuseSamplerIndex = 1; 
-    public int OpacityUVMultiplierIndex = -1;
-    public int DiffuseUVMultiplierIndex = -1;
-    public int DiffuseUVAdderIndex = -1;
-    public int SpecularFactorIndex = -1;
-    public int MetallicFactorIndex = -1;
-    public int SecondaryDiffuseUVMultiplierIndex = -1;
-    public int NormalUVMultiplierIndex = -1;
-    public int NormalUVMultiplierOfMultiplierIndex = -1;
-    public int NormalMapStrength0Index = -1;
-    public int NormalMapStrength1Index = -1;
-    public int SecondaryNormalUVMultiplierIndex = -1;
-    public int SpecularUVMultiplierIndex = -1;
-    public int SecondarySpecularUVMultiplierIndex = -1;
-    public int SecondarySpecularFactorIndex = -1;
-    public int SecondaryMetallicFactorIndex = -1;
-    public int DirtMapUVMultiplier0Index = -1;
-    public int DirtMapUVMultiplier1Index = -1;
-    public int DirtDiffuseIndex = -1;
-    public int DirtStrengthIndex = -1;
-    public int EmissiveFactorIndex = -1;
-    public int EmissiveIndex = -1;
-    public int EnvironmentMapStrengthIndex = -1;
-    public int OpacityNoiseUVMultiplierIndex1 = -1;
-    public int OpacityNoiseAmplitudeIndex = -1;
-    public int DiffuseIndex = -1;
-    public int SecondaryDiffuseIndex = -1;
-    public int OcclusionUVMultiplierIndex = -1;
-    public int OcclusionTintIndex = -1;
-    public int IsTransparentIndex = -1;
-    public int EnvironmentMapStrength2Index = -1;
-    public int Unknown3_Index = -1;
-    public int ParallaxUVMultiplierIndex = -1;
-    public int ParallaxFactorIndex = -1;
-    public int ParallaxOffsetIndex = -1;
-}
+    public LevelContent(string levelPath)
+    {
+        Parallel.For(0, 14, (i) =>
+        {
+            switch (i)
+            {
+                case 0:
+                    ModelsMVR = new Movers(levelPath + "/WORLD/MODELS.MVR");
+                    break;
+                case 1:
+                    CommandsPAK = new Commands(levelPath + "/WORLD/COMMANDS.PAK");
+                    break;
+                case 2:
+                    RenderableREDS = new RenderableElements(levelPath + "/WORLD/REDS.BIN");
+                    break;
+                case 3:
+                    ResourcesBIN = new CATHODE.Resources(levelPath + "/WORLD/RESOURCES.BIN");
+                    break;
+                case 4:
+                    PhysicsMap = new PhysicsMaps(levelPath + "/WORLD/PHYSICS.MAP");
+                    break;
+                case 5:
+                    EnvironmentMap = new EnvironmentMaps(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
+                    break;
+                case 6:
+                    CollisionMap = new CollisionMaps(levelPath + "/WORLD/COLLISION.MAP");
+                    break;
+                case 7:
+                    EnvironmentAnimation = new EnvironmentAnimations(levelPath + "/WORLD/ENVIRONMENT_ANIMATION.DAT");
+                    break;
+                case 8:
+                    ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
+                    break;
+                case 9:
+                    ModelsMTL = new Materials(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
+                    break;
+                case 10:
+                    ModelsPAK = new Models(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
+                    break;
+                case 11:
+                    ShadersPAK = new ShadersPAK(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
+                    break;
+                case 12:
+                    ShadersIDXRemap = new IDXRemap(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
+                    break;
+                case 13:
+                    LevelTextures = new Textures(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK");
+                    break;
+            }
+        });
+    }
 
-public class AlienTexture
-{
-    public Cubemap cubemap = null;
-    public Texture2D texture = null;
-
-    public bool HasLoaded { get { return cubemap != null || texture != null; } }
-    public bool IsCubemap { get { return cubemap != null; } }
-    public bool IsTexture { get { return texture != null; } }
-}
+    public Movers ModelsMVR;
+    public Commands CommandsPAK;
+    public RenderableElements RenderableREDS;
+    public CATHODE.Resources ResourcesBIN;
+    public PhysicsMaps PhysicsMap;
+    public EnvironmentMaps EnvironmentMap;
+    public CollisionMaps CollisionMap;
+    public EnvironmentAnimations EnvironmentAnimation;
+    public byte[] ModelsCST;
+    public Materials ModelsMTL;
+    public Models ModelsPAK;
+    public Textures LevelTextures;
+    public ShadersPAK ShadersPAK;
+    public alien_shader_bin_pak ShadersBIN;
+    public IDXRemap ShadersIDXRemap;
+};
