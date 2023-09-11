@@ -46,8 +46,8 @@ public class WebsocketClient : MonoBehaviour
         if (shouldRepositionCam)
         {
             UnityEngine.Vector3 camPositionUnity = new UnityEngine.Vector3(camPosition.X, camPosition.Y, camPosition.Z);
-            Camera.main.transform.position = camPositionUnity - new UnityEngine.Vector3(0, 1, 0);
-            Camera.main.transform.LookAt(camPositionUnity);
+            //Camera.main.transform.position = camPositionUnity - new UnityEngine.Vector3(0, 1, 0);
+            //Camera.main.transform.LookAt(camPositionUnity);
             this.transform.position = camPositionUnity;
             Selection.activeGameObject = this.gameObject;
             StartCoroutine(FocusDelayed());

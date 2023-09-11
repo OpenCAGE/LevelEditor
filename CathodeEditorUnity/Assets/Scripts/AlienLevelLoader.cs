@@ -2,22 +2,22 @@ using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
 using System.IO;
-using System;
 using CathodeLib;
 using CATHODE.LEGACY;
 using static CATHODE.LEGACY.ShadersPAK;
-using System.Linq;
-using Unity.Profiling;
 using System.Threading.Tasks;
-using static CATHODE.Materials.Material;
-using static UnityEngine.Networking.UnityWebRequest;
+using CATHODE.Scripting;
+using System.Linq;
+using UnityEditor.Experimental.GraphView;
+using CATHODE.Scripting.Internal;
+using UnityEngine.UIElements;
 
 public class AlienLevelLoader : MonoBehaviour
 {
     private string _levelName = "BSP_TORRENS";
     public string LevelName => _levelName;
 
-    private alien_level _levelContent = null;
+    private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
 
     private GameObject _parentGO = null;
@@ -52,10 +52,13 @@ public class AlienLevelLoader : MonoBehaviour
 
     public void LoadLevel(string level)
     {
+        Debug.Log("Loading " + level + "...");
+
         ResetLevel();
 
         _levelName = level;
-        _levelContent = new alien_level(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
+        _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
+        _parentGO = new GameObject(_levelName);
 
         //Set skybox
         /*
@@ -71,8 +74,13 @@ public class AlienLevelLoader : MonoBehaviour
         }
         */
 
-        //Populate the level with "movers"
-        _parentGO = new GameObject(_levelName);
+        //LoadMVR();
+        LoadCommands();
+    }
+
+    /* Load MVR data */
+    private void LoadMVR()
+    {
         for (int i = 0; i < _levelContent.ModelsMVR.Entries.Count; i++)
         {
             GameObject thisParent = new GameObject("MVR: " + i + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementIndex + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementCount);
@@ -87,12 +95,118 @@ public class AlienLevelLoader : MonoBehaviour
                 SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
             }
         }
-
-        //Pull content from COMMANDS
-        //CommandsLoader cmdLoader = gameObject.AddComponent<CommandsLoader>();
-        //StartCoroutine(cmdLoader.LoadCommandsPAK(levelPath));
     }
 
+    /* Load Commands data */
+    private void LoadCommands()
+    {
+        ParseComposite(_levelContent.CommandsPAK.EntryPoints[0], _parentGO, Vector3.zero, Quaternion.identity, new List<AliasEntity>());
+    }
+    void ParseComposite(Composite composite, GameObject parentGO, Vector3 parentPos, Quaternion parentRot, List<AliasEntity> aliases)
+    {
+        if (composite == null) return;
+        GameObject compositeGO = new GameObject(composite.name);
+        compositeGO.transform.parent = parentGO.transform;
+        compositeGO.transform.SetLocalPositionAndRotation(parentPos, parentRot);
+
+        //Compile all appropriate overrides, and keep the hierarchies trimmed so that index zero is accurate to this composite
+        List<AliasEntity> trimmedAliases = new List<AliasEntity>();
+        for (int i = 0; i < aliases.Count; i++)
+        {
+            aliases[i].alias.path.RemoveAt(0);
+            if (aliases[i].alias.path.Count != 0)
+                trimmedAliases.Add(aliases[i]);
+        }
+        trimmedAliases.AddRange(composite.aliases);
+        aliases = trimmedAliases;
+
+        //Parse all functions in this composite & handle them appropriately
+        foreach (FunctionEntity function in composite.functions)
+        {
+            //Jump through to the next composite
+            if (!CommandsUtils.FunctionTypeExists(function.function))
+            {
+                Composite compositeNext = _levelContent.CommandsPAK.GetComposite(function.function);
+                if (compositeNext != null)
+                {
+                    //Find all overrides that are appropriate to take through to the next composite
+                    List<AliasEntity> overridesNext = trimmedAliases.FindAll(o => o.alias.path[0] == function.shortGUID);
+
+                    //Work out our position, accounting for overrides
+                    Vector3 position, rotation;
+                    AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
+                    GetEntityTransform(ovrride, out position, out rotation);
+                    if (position == Vector3.zero && rotation == Vector3.zero)
+                        GetEntityTransform(function, out position, out rotation);
+
+                    //Continue
+                    ParseComposite(compositeNext, compositeGO, position, Quaternion.Euler(rotation), overridesNext);
+                }
+            }
+
+            //Parse model data
+            else if (CommandsUtils.GetFunctionType(function.function) == FunctionType.ModelReference)
+            {
+                //Work out our position, accounting for overrides
+                Vector3 position, rotation;
+                AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
+                GetEntityTransform(ovrride, out position, out rotation);
+                if (position == Vector3.zero && rotation == Vector3.zero)
+                    GetEntityTransform(function, out position, out rotation);
+
+                GameObject nodeModel = new GameObject(function.shortGUID.ToByteString());
+                nodeModel.transform.parent = compositeGO.transform;
+                nodeModel.transform.SetLocalPositionAndRotation(position, Quaternion.Euler(rotation));
+
+                Parameter resourceParam = function.GetParameter("resource");
+                if (resourceParam != null && resourceParam.content != null)
+                {
+                    switch (resourceParam.content.dataType)
+                    {
+                        case DataType.RESOURCE:
+                            cResource resource = (cResource)resourceParam.content;
+                            foreach (ResourceReference resourceRef in resource.value)
+                            {
+                                for (int i = 0; i < resourceRef.count; i++)
+                                {
+                                    RenderableElements.Element renderable = _levelContent.RenderableREDS.Entries[resourceRef.index + i];
+                                    switch (resourceRef.entryType)
+                                    {
+                                        case ResourceType.RENDERABLE_INSTANCE:
+                                            SpawnModel(renderable.ModelIndex, renderable.MaterialIndex, nodeModel);
+                                            break;
+                                        case ResourceType.COLLISION_MAPPING:
+                                            break;
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+    }
+    void GetEntityTransform(Entity entity, out Vector3 position, out Vector3 rotation)
+    {
+        position = Vector3.zero;
+        rotation = Vector3.zero;
+        if (entity == null) return;
+
+        Parameter positionParam = entity.GetParameter("position");
+        if (positionParam != null && positionParam.content != null)
+        {
+            switch (positionParam.content.dataType)
+            {
+                case DataType.TRANSFORM:
+                    cTransform transform = (cTransform)positionParam.content;
+                    position = transform.position;
+                    rotation = transform.rotation;
+                    break;
+            }
+        }
+    }
+
+    #region Asset Handlers
     private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
         GameObjectHolder holder = GetModel(binIndex);
@@ -365,6 +479,7 @@ public class AlienLevelLoader : MonoBehaviour
     {
         return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
     }
+    #endregion
 }
 
 //Temp wrapper for GameObject while we just want it in memory
@@ -375,9 +490,9 @@ public class GameObjectHolder
     public int DefaultMaterial; 
 }
 
-public class alien_level
+public class LevelContent
 {
-    public alien_level(string levelPath)
+    public LevelContent(string levelPath)
     {
         Parallel.For(0, 14, (i) =>
         {
