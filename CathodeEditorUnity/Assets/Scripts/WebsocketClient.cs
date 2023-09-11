@@ -78,8 +78,6 @@ public class WebsocketClient : MonoBehaviour
     private void OnMessage(object sender, MessageEventArgs e)
     {
         WSPacket packet = JsonConvert.DeserializeObject<WSPacket>(e.Data);
-        Debug.Log(e.Data);
-
         switch (packet.type)
         {
             case MessageType.SYNC_VERSION:

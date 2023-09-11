@@ -149,7 +149,7 @@ public class AlienLevelLoader : MonoBehaviour
                     format = UnityEngine.TextureFormat.BC7;
                     break;
                 case Textures.TextureFormat.DXGI_FORMAT_B8G8R8_UNORM:
-                    Debug.LogWarning("BGR24 UNSUPPORTED!");
+                    //Debug.LogWarning("BGR24 UNSUPPORTED!");
                     return null;
                 case Textures.TextureFormat.DXGI_FORMAT_B8G8R8A8_UNORM:
                     format = UnityEngine.TextureFormat.BGRA32;
@@ -163,6 +163,7 @@ public class AlienLevelLoader : MonoBehaviour
                 {
                     case Textures.AlienTextureType.ENVIRONMENT_MAP:
                         break;
+                        /*
                         Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
                         cubemapTex.name = InTexture.Name;
                         cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
@@ -172,6 +173,7 @@ public class AlienLevelLoader : MonoBehaviour
                         cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
                         cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
                         cubemapTex.Apply();
+                        */
                         //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
                         break;
                     default:
