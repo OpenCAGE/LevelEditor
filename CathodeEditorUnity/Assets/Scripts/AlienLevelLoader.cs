@@ -160,7 +160,6 @@ public class AlienLevelLoader : MonoBehaviour
         if (parent != null) newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
         newModelSpawn.transform.localRotation = Quaternion.identity;
-        newModelSpawn.transform.localScale = holder.LocalScale;
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
         newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = LoadMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
@@ -180,7 +179,7 @@ public class AlienLevelLoader : MonoBehaviour
         }
 
         Textures.TEX4 InTexture = AlienTextures.Entries[EntryIndex];
-        Textures.TEX4_Part TexPart = loadV1 ? InTexture.tex_HighRes : InTexture.tex_LowRes;
+        Textures.TEX4.Part TexPart = loadV1 ? InTexture.tex_HighRes : InTexture.tex_LowRes;
 
         Vector2 textureDims;
         int textureLength = 0;
@@ -252,14 +251,13 @@ public class AlienLevelLoader : MonoBehaviour
     {
         if (LoadedModels[EntryIndex] == null)
         {
-            Models.CS2.LOD.Submesh submesh = Result.ModelsPAK.GetAtWriteIndex(EntryIndex);
+            Models.CS2.Component.LOD.Submesh submesh = Result.ModelsPAK.GetAtWriteIndex(EntryIndex);
             if (submesh == null) return null;
-            Models.CS2.LOD lod = Result.ModelsPAK.FindModelLODForSubmesh(submesh);
+            Models.CS2.Component.LOD lod = Result.ModelsPAK.FindModelLODForSubmesh(submesh);
             Models.CS2 mesh = Result.ModelsPAK.FindModelForSubmesh(submesh);
-            Mesh thisMesh = Result.ModelsPAK.GetMesh(submesh);
+            Mesh thisMesh = submesh.ToMesh();
 
             GameObjectHolder ThisModelPart = new GameObjectHolder();
-            ThisModelPart.LocalScale = new Vector3(submesh.ScaleFactor, submesh.ScaleFactor, submesh.ScaleFactor);
             ThisModelPart.Name = ((mesh == null) ? "" : mesh.Name) + ": " + ((lod == null) ? "" : lod.Name);
             ThisModelPart.MainMesh = thisMesh;
             ThisModelPart.DefaultMaterial = submesh.MaterialLibraryIndex;
@@ -640,16 +638,16 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 int PairIndex = Shader.TextureLinks[SlotIndex];
                 // NOTE: PairIndex == 255 means no index.
-                if (PairIndex < InMaterial.TextureReferences.Count)
+                if (PairIndex < InMaterial.TextureReferences.Length)
                 {
                     Materials.Material.Texture Pair = InMaterial.TextureReferences[PairIndex];
                     switch (Pair.Source)
                     {
                         case Materials.Material.Texture.TextureSource.LEVEL:
-                            availableTextures.Add(LoadedTexturesLevel[Pair.BinIndex].texture);
+                            availableTextures.Add(Pair.BinIndex == -1 ? null : LoadedTexturesLevel[Pair.BinIndex]?.texture);
                             break;
                         case Materials.Material.Texture.TextureSource.GLOBAL:
-                            availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex].texture);
+                            availableTextures.Add(LoadedTexturesGlobal[Pair.BinIndex]?.texture);
                             break;
                         default:
                             availableTextures.Add(null);
@@ -702,7 +700,7 @@ public class AlienLevelLoader : MonoBehaviour
             //Apply properties
             MaterialPropertyIndex cstIndex = GetMaterialPropertyIndex(MTLIndex);
             BinaryReader cstReader = new BinaryReader(new MemoryStream(Result.ModelsMTL.CSTData[2]));
-            int baseOffset = (InMaterial.ConstantBuffers[2].CstIndex * 4);
+            int baseOffset = (InMaterial.ConstantBuffers[2].Offset * 4);
             if (CSTIndexValid(cstIndex.DiffuseIndex, ref Shader))
             {
                 Vector4 colour = LoadFromCST<Vector4>(ref cstReader, baseOffset + (Shader.CSTLinks[2][cstIndex.DiffuseIndex] * 4));
@@ -816,7 +814,6 @@ public class AlienLevelLoader : MonoBehaviour
 //Temp wrapper for GameObject while we just want it in memory
 public class GameObjectHolder
 {
-    public Vector3 LocalScale;
     public string Name;
     public Mesh MainMesh; //TODO: should this be contained in a globally referenced array?
     public int DefaultMaterial; 
