@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
 using WebSocketSharp;
+using System.Numerics;
 
 public class WebsocketClient : MonoBehaviour
 {
@@ -17,7 +18,7 @@ public class WebsocketClient : MonoBehaviour
     private string levelToLoad = "";
     private bool shouldLoad = false;
 
-    private Vector3 camPosition;
+    private System.Numerics.Vector3 camPosition;
     private bool shouldRepositionCam = false;
 
     private int[] redsIndex;
@@ -44,9 +45,10 @@ public class WebsocketClient : MonoBehaviour
         }
         if (shouldRepositionCam)
         {
-            Camera.main.transform.position = camPosition - new Vector3(0, 1, 0);
-            Camera.main.transform.LookAt(camPosition);
-            this.transform.position = camPosition;
+            UnityEngine.Vector3 camPositionUnity = new UnityEngine.Vector3(camPosition.X, camPosition.Y, camPosition.Z);
+            Camera.main.transform.position = camPositionUnity - new UnityEngine.Vector3(0, 1, 0);
+            Camera.main.transform.LookAt(camPositionUnity);
+            this.transform.position = camPositionUnity;
             Selection.activeGameObject = this.gameObject;
             StartCoroutine(FocusDelayed());
             shouldRepositionCam = false;
@@ -186,8 +188,8 @@ public class WebsocketClient : MonoBehaviour
         public string level_name;
         public string alien_path;
 
-        public Vector3 position;
-        public Vector3 rotation;
+        public System.Numerics.Vector3 position;
+        public System.Numerics.Vector3 rotation;
 
         public string entity_name;
     }
