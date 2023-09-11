@@ -38,7 +38,7 @@ public class WebsocketClient : MonoBehaviour
     {
         if (shouldLoad)
         {
-            if (loader.CurrentLevelName != levelToLoad)
+            if (loader.LevelName != levelToLoad)
                 loader.LoadLevel(levelToLoad);
             shouldLoad = false;
         }
