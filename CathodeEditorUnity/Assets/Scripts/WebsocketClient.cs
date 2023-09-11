@@ -21,6 +21,9 @@ public class WebsocketClient : MonoBehaviour
     private System.Numerics.Vector3 camPosition;
     private bool shouldRepositionCam = false;
 
+    private string compositeName = "";
+    private bool shouldLoadComposite = false;
+
     private int[] redsIndex;
     private bool shouldFocusOnReds = false;
 
@@ -42,6 +45,12 @@ public class WebsocketClient : MonoBehaviour
             if (loader.LevelName != levelToLoad)
                 loader.LoadLevel(levelToLoad);
             shouldLoad = false;
+        }
+        if (shouldLoadComposite)
+        {
+            if (loader.CompositeName != compositeName)
+                loader.LoadComposite(compositeName);
+            shouldLoadComposite = false;
         }
         if (shouldRepositionCam)
         {
@@ -94,6 +103,14 @@ public class WebsocketClient : MonoBehaviour
                     levelToLoad = packet.level_name;
                     _pathToAI = packet.alien_path;
                     shouldLoad = true;
+                    mutex.ReleaseMutex();
+                    break;
+                }
+            case MessageType.LOAD_COMPOSITE:
+                {
+                    mutex.WaitOne();
+                    compositeName = packet.composite_name;
+                    shouldLoadComposite = true;
                     mutex.ReleaseMutex();
                     break;
                 }
@@ -174,6 +191,8 @@ public class WebsocketClient : MonoBehaviour
         SYNC_VERSION,
 
         LOAD_LEVEL,
+        LOAD_COMPOSITE,
+
         GO_TO_POSITION,
         SHOW_ENTITY_NAME,
     }
@@ -190,5 +209,7 @@ public class WebsocketClient : MonoBehaviour
         public System.Numerics.Vector3 rotation;
 
         public string entity_name;
+
+        public string composite_name;
     }
 }

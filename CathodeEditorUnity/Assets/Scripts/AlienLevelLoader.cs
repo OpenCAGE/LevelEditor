@@ -17,10 +17,12 @@ public class AlienLevelLoader : MonoBehaviour
     private string _levelName = "BSP_TORRENS";
     public string LevelName => _levelName;
 
+    private GameObject _loadedCompositeGO = null;
+    private Composite _loadedComposite = null;
+    public string CompositeName => _loadedComposite?.name;
+
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
-
-    private GameObject _parentGO = null;
 
     private Dictionary<int, Texture2D> _texturesGlobal = new Dictionary<int, Texture2D>();
     private Dictionary<int, Texture2D> _texturesLevel = new Dictionary<int, Texture2D>();
@@ -36,8 +38,8 @@ public class AlienLevelLoader : MonoBehaviour
 
     private void ResetLevel()
     {
-        if (_parentGO != null)
-            Destroy(_parentGO);
+        if (_loadedCompositeGO != null)
+            Destroy(_loadedCompositeGO);
 
         _texturesGlobal.Clear();
         _texturesLevel.Clear();
@@ -52,13 +54,12 @@ public class AlienLevelLoader : MonoBehaviour
 
     public void LoadLevel(string level)
     {
-        Debug.Log("Loading " + level + "...");
+        Debug.Log("Loading level " + level + "...");
 
         ResetLevel();
 
         _levelName = level;
         _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
-        _parentGO = new GameObject(_levelName);
 
         //Set skybox
         /*
@@ -74,8 +75,20 @@ public class AlienLevelLoader : MonoBehaviour
         }
         */
 
+        //TODO: we should load a combination of Commands and MVR data when loading the root composite (or instances from root composite)
+        //      ... other than that we should just load from Commands
+
         //LoadMVR();
-        LoadCommands();
+        //LoadCommands();
+    }
+    public void LoadComposite(string name)
+    {
+        if (_loadedCompositeGO != null)
+            Destroy(_loadedCompositeGO);
+        _loadedCompositeGO = new GameObject(_levelName);
+
+        Debug.Log("Loading composite " + name + "...");
+        LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
     }
 
     /* Load MVR data */
@@ -88,7 +101,7 @@ public class AlienLevelLoader : MonoBehaviour
             thisParent.transform.position = m.GetColumn(3);
             thisParent.transform.rotation = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
             thisParent.transform.localScale = new Vector3(m.GetColumn(0).magnitude, m.GetColumn(1).magnitude, m.GetColumn(2).magnitude);
-            thisParent.transform.parent = _parentGO.transform;
+            thisParent.transform.parent = _loadedCompositeGO.transform;
             for (int x = 0; x < _levelContent.ModelsMVR.Entries[i].renderableElementCount; x++)
             {
                 RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
@@ -98,9 +111,10 @@ public class AlienLevelLoader : MonoBehaviour
     }
 
     /* Load Commands data */
-    private void LoadCommands()
+    private void LoadCommands(Composite composite)
     {
-        ParseComposite(_levelContent.CommandsPAK.EntryPoints[0], _parentGO, Vector3.zero, Quaternion.identity, new List<AliasEntity>());
+        _loadedComposite = composite;
+        ParseComposite(composite, _loadedCompositeGO, Vector3.zero, Quaternion.identity, new List<AliasEntity>());
     }
     void ParseComposite(Composite composite, GameObject parentGO, Vector3 parentPos, Quaternion parentRot, List<AliasEntity> aliases)
     {
