@@ -435,9 +435,9 @@ public class AlienLevelLoader : MonoBehaviour
             using (BinaryReader cstReader = new BinaryReader(new MemoryStream(_levelContent.ModelsMTL.CSTData[2])))
             {
                 int baseOffset = (InMaterial.ConstantBuffers[2].Offset * 4);
-                if (CSTIndexValid(metadata.cstIndexes.DiffuseIndex, ref Shader))
+                if (CSTIndexValid(metadata.cstIndexes.Diffuse0, ref Shader))
                 {
-                    Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseIndex] * 4));
+                    Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.Diffuse0] * 4));
                     toReturn.SetColor("_Color", colour);
                     if (colour.w != 1)
                     {
@@ -445,36 +445,38 @@ public class AlienLevelLoader : MonoBehaviour
                         toReturn.EnableKeyword("_ALPHATEST_ON");
                     }
                 }
-                if (CSTIndexValid(metadata.cstIndexes.DiffuseUVMultiplierIndex, ref Shader))
+                if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader))
                 {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseUVMultiplierIndex] * 4));
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
                     toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
                 }
+                /*
                 if (CSTIndexValid(metadata.cstIndexes.DiffuseUVAdderIndex, ref Shader))
                 {
                     float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseUVAdderIndex] * 4));
                     toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
                 }
-                if (CSTIndexValid(metadata.cstIndexes.NormalUVMultiplierIndex, ref Shader))
+                */
+                if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader))
                 {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.NormalUVMultiplierIndex] * 4));
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
                     toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
                     toReturn.SetFloat("_BumpScale", offset);
                 }
-                if (CSTIndexValid(metadata.cstIndexes.OcclusionUVMultiplierIndex, ref Shader))
+                if (CSTIndexValid(metadata.cstIndexes.OcclusionMapUVMultiplier, ref Shader))
                 {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.OcclusionUVMultiplierIndex] * 4));
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.OcclusionMapUVMultiplier] * 4));
                     toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
                 }
-                if (CSTIndexValid(metadata.cstIndexes.SpecularUVMultiplierIndex, ref Shader))
+                if (CSTIndexValid(metadata.cstIndexes.SpecularMap0UVMultiplier, ref Shader))
                 {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularUVMultiplierIndex] * 4));
+                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularMap0UVMultiplier] * 4));
                     toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
                     toReturn.SetFloat("_GlossMapScale", offset);
                 }
-                if (CSTIndexValid(metadata.cstIndexes.SpecularFactorIndex, ref Shader))
+                if (CSTIndexValid(metadata.cstIndexes.SpecularFactor0, ref Shader))
                 {
-                    float spec = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularFactorIndex] * 4));
+                    float spec = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularFactor0] * 4));
                     toReturn.SetFloat("_Glossiness", spec);
                     toReturn.SetFloat("_GlossMapScale", spec);
                 }
