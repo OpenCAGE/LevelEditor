@@ -1,3 +1,5 @@
+#define USE_MVR
+
 using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
@@ -11,6 +13,8 @@ using System.Linq;
 using UnityEditor.Experimental.GraphView;
 using CATHODE.Scripting.Internal;
 using UnityEngine.UIElements;
+using static CATHODE.Materials.Material;
+using System;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -24,10 +28,18 @@ public class AlienLevelLoader : MonoBehaviour
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
 
-    private Dictionary<int, Texture2D> _texturesGlobal = new Dictionary<int, Texture2D>();
-    private Dictionary<int, Texture2D> _texturesLevel = new Dictionary<int, Texture2D>();
+    private Dictionary<int, TexOrCube> _texturesGlobal = new Dictionary<int, TexOrCube>();
+    private Dictionary<int, TexOrCube> _texturesLevel = new Dictionary<int, TexOrCube>();
     private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
     private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
+
+    private Dictionary<int, ReflectionProbe> _envMaps = new Dictionary<int, ReflectionProbe>();
+
+    public class TexOrCube
+    {
+        public Texture2D Texture = null;
+        public Cubemap Cubemap = null;
+    }
 
     private WebsocketClient _client;
 
@@ -78,22 +90,27 @@ public class AlienLevelLoader : MonoBehaviour
         //TODO: we should load a combination of Commands and MVR data when loading the root composite (or instances from root composite)
         //      ... other than that we should just load from Commands
 
-        //LoadMVR();
-        //LoadCommands();
+#if USE_MVR
+        LoadMVR();
+#endif
     }
     public void LoadComposite(string name)
     {
+#if !USE_MVR
         if (_loadedCompositeGO != null)
             Destroy(_loadedCompositeGO);
         _loadedCompositeGO = new GameObject(_levelName);
 
         Debug.Log("Loading composite " + name + "...");
         LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
+#endif
     }
 
     /* Load MVR data */
     private void LoadMVR()
     {
+        _loadedCompositeGO = new GameObject(_levelName);
+
         for (int i = 0; i < _levelContent.ModelsMVR.Entries.Count; i++)
         {
             GameObject thisParent = new GameObject("MVR: " + i + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementIndex + "/" + _levelContent.ModelsMVR.Entries[i].renderableElementCount);
@@ -105,7 +122,12 @@ public class AlienLevelLoader : MonoBehaviour
             for (int x = 0; x < _levelContent.ModelsMVR.Entries[i].renderableElementCount; x++)
             {
                 RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
-                SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
+                MeshRenderer renderer = SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
+                if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
+                {
+                    renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
+                    renderer.probeAnchor = GetReflectionProbe((int)_levelContent.ModelsMVR.Entries[i].environmentMapIndex)?.transform;
+                }
             }
         }
     }
@@ -221,13 +243,13 @@ public class AlienLevelLoader : MonoBehaviour
     }
 
     #region Asset Handlers
-    private void SpawnModel(int binIndex, int mtlIndex, GameObject parent)
+    private MeshRenderer SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
         GameObjectHolder holder = GetModel(binIndex);
         if (holder == null)
         {
             Debug.Log("Attempted to load non-parsed model (" + binIndex + "). Skipping!");
-            return;
+            return null;
         }
 
         GameObject newModelSpawn = new GameObject();
@@ -236,16 +258,52 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.transform.localRotation = Quaternion.identity;
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
-        newModelSpawn.AddComponent<MeshRenderer>().sharedMaterial = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        MeshRenderer renderer = newModelSpawn.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
 
         //todo apply mvr colour scale here
+
+        return renderer;
     }
 
     private Texture2D GetTexture(int index, bool global)
     {
+        return GetTexOrCube(index, global)?.Texture;
+    }
+    private Cubemap GetCubemap(int index, bool global)
+    {
+        return GetTexOrCube(index, global)?.Cubemap;
+    }
+
+    private ReflectionProbe GetReflectionProbe(int env_map_index)
+    {
+        //TODO: env_map_index being -1 means we should use the GLOBAL one i think??
+        if (env_map_index == -1)
+            return null;
+
+        if (!_envMaps.ContainsKey(env_map_index))
+        {
+            Debug.Log("env_map_index -> " + env_map_index);
+            Debug.Log("_levelContent.EnvironmentMap.Entries -> " + _levelContent.EnvironmentMap.Entries.Count);
+
+            //TODO: this is NOT correct. need to check how we point to the texture. should not have so many probes.
+
+            Cubemap cubemap = GetCubemap(_levelContent.EnvironmentMap.Entries[env_map_index].MoverIndex, false);
+            ReflectionProbe probe = new GameObject("Reflection Probe " + env_map_index).AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
+            probe.customBakedTexture = cubemap;
+            _envMaps.Add(env_map_index, probe);
+        }
+
+        return _envMaps[env_map_index];
+    }
+    
+    private TexOrCube GetTexOrCube(int index, bool global)
+    {
         if ((global && !_texturesGlobal.ContainsKey(index)) || (!global && !_texturesLevel.ContainsKey(index)))
         {
             Textures.TEX4 InTexture = (global ? _globalTextures : _levelContent.LevelTextures).GetAtWriteIndex(index);
+            if (InTexture == null) return null;
             Textures.TEX4.Part TexPart = InTexture.tex_HighRes;
 
             Vector2 textureDims;
@@ -284,39 +342,35 @@ public class AlienLevelLoader : MonoBehaviour
                     break;
             }
 
-            Texture2D texture = null;
+            TexOrCube tex = new TexOrCube();
             using (BinaryReader tempReader = new BinaryReader(new MemoryStream(TexPart.Content)))
             {
                 switch (InTexture.Type)
                 {
                     case Textures.AlienTextureType.ENVIRONMENT_MAP:
-                        break;
-                        /*
-                        Cubemap cubemapTex = new Cubemap((int)textureDims.x, format, true);
-                        cubemapTex.name = InTexture.Name;
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
-                        cubemapTex.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
-                        cubemapTex.Apply();
-                        */
-                        //AssetDatabase.CreateAsset(cubemapTex, "Assets/Cubemaps/" + Path.GetFileNameWithoutExtension(cubemapTex.name) + ".cubemap");
+                        tex.Cubemap = new Cubemap((int)textureDims.x, format, true);
+                        tex.Cubemap.name = InTexture.Name;
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveY);
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
+                        tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
+                        tex.Cubemap.Apply();
                         break;
                     default:
-                        texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
-                        texture.name = InTexture.Name;
-                        texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
-                        texture.Apply();
+                        tex.Texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
+                        tex.Texture.name = InTexture.Name;
+                        tex.Texture.LoadRawTextureData(tempReader.ReadBytes(textureLength));
+                        tex.Texture.Apply();
                         break;
                 }
             }
 
             if (global)
-                _texturesGlobal.Add(index, texture);
+                _texturesGlobal.Add(index, tex);
             else
-                _texturesLevel.Add(index, texture);
+                _texturesLevel.Add(index, tex);
         }
 
         if (global)
