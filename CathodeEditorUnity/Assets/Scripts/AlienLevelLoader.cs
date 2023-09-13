@@ -485,54 +485,52 @@ public class AlienLevelLoader : MonoBehaviour
                 }
             }
 
+
             //Apply properties
-            using (BinaryReader cstReader = new BinaryReader(new MemoryStream(_levelContent.ModelsMTL.CSTData[2])))
+            for (int i = 0; i < Shader.Header.CSTCounts.Length; i++)
             {
-                int baseOffset = (InMaterial.ConstantBuffers[2].Offset * 4);
-                if (CSTIndexValid(metadata.cstIndexes.Diffuse0, ref Shader))
+                using (BinaryReader cstReader = new BinaryReader(new MemoryStream(_levelContent.ModelsMTL.CSTData[i])))
                 {
-                    Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.Diffuse0] * 4));
-                    toReturn.SetColor("_Color", colour);
-                    if (colour.w != 1)
+                    int baseOffset = (InMaterial.ConstantBuffers[i].Offset * 4);
+
+                    if (CSTIndexValid(metadata.cstIndexes.Diffuse0, ref Shader, i))
                     {
-                        toReturn.SetFloat("_Mode", 1.0f);
-                        toReturn.EnableKeyword("_ALPHATEST_ON");
+                        Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.Diffuse0] * 4));
+                        toReturn.SetColor("_Color", colour);
+                        if (colour.w != 1)
+                        {
+                            toReturn.SetFloat("_Mode", 1.0f);
+                            toReturn.EnableKeyword("_ALPHATEST_ON");
+                        }
                     }
-                }
-                if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader))
-                {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
-                    toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
-                }
-                /*
-                if (CSTIndexValid(metadata.cstIndexes.DiffuseUVAdderIndex, ref Shader))
-                {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseUVAdderIndex] * 4));
-                    toReturn.SetTextureOffset("_MainTex", new Vector2(offset, offset));
-                }
-                */
-                if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader))
-                {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
-                    toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
-                    toReturn.SetFloat("_BumpScale", offset);
-                }
-                if (CSTIndexValid(metadata.cstIndexes.OcclusionMapUVMultiplier, ref Shader))
-                {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.OcclusionMapUVMultiplier] * 4));
-                    toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
-                }
-                if (CSTIndexValid(metadata.cstIndexes.SpecularMap0UVMultiplier, ref Shader))
-                {
-                    float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularMap0UVMultiplier] * 4));
-                    toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
-                    toReturn.SetFloat("_GlossMapScale", offset);
-                }
-                if (CSTIndexValid(metadata.cstIndexes.SpecularFactor0, ref Shader))
-                {
-                    float spec = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[2][metadata.cstIndexes.SpecularFactor0] * 4));
-                    toReturn.SetFloat("_Glossiness", spec);
-                    toReturn.SetFloat("_GlossMapScale", spec);
+                    if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
+                        toReturn.SetFloat("_BumpScale", offset);
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.OcclusionMapUVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.OcclusionMapUVMultiplier] * 4));
+                        toReturn.SetTextureScale("_OcclusionMap", new Vector2(offset, offset));
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.SpecularMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.SpecularMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_MetallicGlossMap", new Vector2(offset, offset));
+                        toReturn.SetFloat("_GlossMapScale", offset);
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.SpecularFactor0, ref Shader, i))
+                    {
+                        float spec = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.SpecularFactor0] * 4));
+                        toReturn.SetFloat("_Glossiness", spec);
+                        toReturn.SetFloat("_GlossMapScale", spec);
+                    }
                 }
             }
 
@@ -545,9 +543,9 @@ public class AlienLevelLoader : MonoBehaviour
         cstReader.BaseStream.Position = offset;
         return Utilities.Consume<T>(cstReader);
     }
-    private bool CSTIndexValid(int i, ref ShadersPAK.ShaderEntry Shader)
+    private bool CSTIndexValid(int cstIndex, ref ShadersPAK.ShaderEntry Shader, int i)
     {
-        return i >= 0 && i < Shader.Header.CSTCounts[2] && (int)Shader.CSTLinks[2][i] != -1;
+        return cstIndex >= 0 && cstIndex < Shader.Header.CSTCounts[i] && (int)Shader.CSTLinks[i][cstIndex] != -1 && Shader.CSTLinks[i][cstIndex] != 255;
     }
     #endregion
 }
