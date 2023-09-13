@@ -1,5 +1,3 @@
-#define USE_MVR
-
 using System.Collections.Generic;
 using UnityEngine;
 using CATHODE;
@@ -19,6 +17,10 @@ using System.Reflection;
 
 public class AlienLevelLoader : MonoBehaviour
 {
+    //Support soon for combined Commands and Mover - but for now, lets let people toggle 
+    [Tooltip("Enable this option to load data from the MVR file, which will apply additional instance-specific properties, such as cubemaps and texture overrides. Toggle this setting before hitting play.")]
+    [SerializeField] private bool _loadMoverData = false;
+
     private string _levelName = "BSP_TORRENS";
     public string LevelName => _levelName;
 
@@ -58,6 +60,7 @@ public class AlienLevelLoader : MonoBehaviour
         _texturesLevel.Clear();
         _materials.Clear();
         _modelGOs.Clear();
+        _envMaps.Clear();
 
         _levelContent = null;
 
@@ -81,28 +84,27 @@ public class AlienLevelLoader : MonoBehaviour
         {
             Cubemap cubemap = GetCubemap(_levelContent.LevelTextures.GetWriteIndex(cubemaps[i]), false);
             ReflectionProbe probe = new GameObject(cubemaps[i].Name).AddComponent<ReflectionProbe>();
+            probe.transform.parent = probeHolder.transform;
             probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
             probe.customBakedTexture = cubemap;
             _envMaps.Add(probe);
         }
 
-        //TODO: we should load a combination of Commands and MVR data when loading the root composite (or instances from root composite)
-        //      ... other than that we should just load from Commands
-
-#if USE_MVR
-        LoadMVR();
-#endif
+        if (_loadMoverData)
+        {
+            LoadMVR();
+        }
     }
     public void LoadComposite(string name)
     {
-#if !USE_MVR
+        if (_loadMoverData) return;
+
         if (_loadedCompositeGO != null)
             Destroy(_loadedCompositeGO);
         _loadedCompositeGO = new GameObject(_levelName);
 
         Debug.Log("Loading composite " + name + "...");
         LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
-#endif
     }
 
     /* Load MVR data */
@@ -481,14 +483,14 @@ public class AlienLevelLoader : MonoBehaviour
                             toReturn.EnableKeyword("_ALPHATEST_ON");
                         }
                     }
-                    if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader, i))
-                    {
-                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
-                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
-                    }
                     if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
                     {
                         float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
                         toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
                         toReturn.SetFloat("_BumpScale", offset);
                     }
