@@ -13,8 +13,9 @@ using System.Linq;
 using UnityEditor.Experimental.GraphView;
 using CATHODE.Scripting.Internal;
 using UnityEngine.UIElements;
-using static CATHODE.Materials.Material;
 using System;
+using Newtonsoft.Json;
+using System.Reflection;
 
 public class AlienLevelLoader : MonoBehaviour
 {
@@ -33,7 +34,7 @@ public class AlienLevelLoader : MonoBehaviour
     private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
     private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
 
-    private Dictionary<int, ReflectionProbe> _envMaps = new Dictionary<int, ReflectionProbe>();
+    private List<ReflectionProbe> _envMaps = new List<ReflectionProbe>();
 
     public class TexOrCube
     {
@@ -72,6 +73,44 @@ public class AlienLevelLoader : MonoBehaviour
 
         _levelName = level;
         _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
+
+        int maxEnvMap = -1;
+        for (int i = 0; i < _levelContent.EnvironmentMap.Entries.Count; i++)
+            if (maxEnvMap < _levelContent.EnvironmentMap.Entries[i].EnvMapIndex)
+                maxEnvMap = _levelContent.EnvironmentMap.Entries[i].EnvMapIndex;
+
+        List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
+
+        if (cubemaps.Count < maxEnvMap)
+        {
+            Debug.LogWarning("cubemap count not matching env");
+        }
+
+        for (int i = 0; i <  cubemaps.Count; i++)
+        {
+            /*
+            EnvironmentMaps.Mapping mapping = _levelContent.EnvironmentMap.Entries.FirstOrDefault(o => o.MoverIndex == mvr_index);
+            if (mapping == null)
+            {
+                Debug.Log("mapping NULL - " + env_map_index + " -> " + mvr_index);
+            }
+            if (mapping?.EnvMapIndex != env_map_index)
+            {
+                Debug.LogError("Unexpected - " + mapping?.EnvMapIndex  + " -> " + env_map_index);
+            }
+            */
+            //TODO: this is NOT correct. need to check how we point to the texture. should not have so many probes.
+            //Cubemap cubemap = GetCubemap(_levelContent.EnvironmentMap.Entries[env_map_index].MoverIndex, false);
+
+
+            Cubemap cubemap = GetCubemap(_levelContent.LevelTextures.GetWriteIndex(cubemaps[i]), false);
+            ReflectionProbe probe = new GameObject("Reflection Probe: " + cubemaps[i].Name).AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
+            probe.customBakedTexture = cubemap;
+            _envMaps.Add(probe);
+        }
+
+        string dsffd = "";
 
         //Set skybox
         /*
@@ -126,7 +165,9 @@ public class AlienLevelLoader : MonoBehaviour
                 if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
                 {
                     renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
-                    renderer.probeAnchor = GetReflectionProbe((int)_levelContent.ModelsMVR.Entries[i].environmentMapIndex)?.transform;
+                    int index = _levelContent.EnvironmentMap.Entries[_levelContent.ModelsMVR.Entries[i].environmentMapIndex].EnvMapIndex;
+                    if (index != -1)
+                        renderer.probeAnchor = _envMaps[index]?.transform;
                 }
             }
         }
@@ -274,29 +315,6 @@ public class AlienLevelLoader : MonoBehaviour
     {
         return GetTexOrCube(index, global)?.Cubemap;
     }
-
-    private ReflectionProbe GetReflectionProbe(int env_map_index)
-    {
-        //TODO: env_map_index being -1 means we should use the GLOBAL one i think??
-        if (env_map_index == -1)
-            return null;
-
-        if (!_envMaps.ContainsKey(env_map_index))
-        {
-            Debug.Log("env_map_index -> " + env_map_index);
-            Debug.Log("_levelContent.EnvironmentMap.Entries -> " + _levelContent.EnvironmentMap.Entries.Count);
-
-            //TODO: this is NOT correct. need to check how we point to the texture. should not have so many probes.
-
-            Cubemap cubemap = GetCubemap(_levelContent.EnvironmentMap.Entries[env_map_index].MoverIndex, false);
-            ReflectionProbe probe = new GameObject("Reflection Probe " + env_map_index).AddComponent<ReflectionProbe>();
-            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
-            probe.customBakedTexture = cubemap;
-            _envMaps.Add(env_map_index, probe);
-        }
-
-        return _envMaps[env_map_index];
-    }
     
     private TexOrCube GetTexOrCube(int index, bool global)
     {
@@ -348,6 +366,9 @@ public class AlienLevelLoader : MonoBehaviour
                 switch (InTexture.Type)
                 {
                     case Textures.AlienTextureType.ENVIRONMENT_MAP:
+
+                        Debug.Log("CubeMAP:" + TexPart.unk1 + " -> " + TexPart.unk2 + " -> " + TexPart.unk3 + " -> " + TexPart.unk4 + " -> " + InTexture.Type + " -> " + InTexture.UnknownTexThing);
+
                         tex.Cubemap = new Cubemap((int)textureDims.x, format, true);
                         tex.Cubemap.name = InTexture.Name;
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
