@@ -74,57 +74,17 @@ public class AlienLevelLoader : MonoBehaviour
         _levelName = level;
         _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
 
-        int maxEnvMap = -1;
-        for (int i = 0; i < _levelContent.EnvironmentMap.Entries.Count; i++)
-            if (maxEnvMap < _levelContent.EnvironmentMap.Entries[i].EnvMapIndex)
-                maxEnvMap = _levelContent.EnvironmentMap.Entries[i].EnvMapIndex;
-
+        //Load cubemaps to reflection probes
         List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
-
-        if (cubemaps.Count < maxEnvMap)
-        {
-            Debug.LogWarning("cubemap count not matching env");
-        }
-
+        GameObject probeHolder = new GameObject("Reflection Probes");
         for (int i = 0; i <  cubemaps.Count; i++)
         {
-            /*
-            EnvironmentMaps.Mapping mapping = _levelContent.EnvironmentMap.Entries.FirstOrDefault(o => o.MoverIndex == mvr_index);
-            if (mapping == null)
-            {
-                Debug.Log("mapping NULL - " + env_map_index + " -> " + mvr_index);
-            }
-            if (mapping?.EnvMapIndex != env_map_index)
-            {
-                Debug.LogError("Unexpected - " + mapping?.EnvMapIndex  + " -> " + env_map_index);
-            }
-            */
-            //TODO: this is NOT correct. need to check how we point to the texture. should not have so many probes.
-            //Cubemap cubemap = GetCubemap(_levelContent.EnvironmentMap.Entries[env_map_index].MoverIndex, false);
-
-
             Cubemap cubemap = GetCubemap(_levelContent.LevelTextures.GetWriteIndex(cubemaps[i]), false);
-            ReflectionProbe probe = new GameObject("Reflection Probe: " + cubemaps[i].Name).AddComponent<ReflectionProbe>();
+            ReflectionProbe probe = new GameObject(cubemaps[i].Name).AddComponent<ReflectionProbe>();
             probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
             probe.customBakedTexture = cubemap;
             _envMaps.Add(probe);
         }
-
-        string dsffd = "";
-
-        //Set skybox
-        /*
-        for (int i = 0; i < LoadedTexturesGlobal.Length; i++)
-        {
-            if (LoadedTexturesGlobal[i] != null && LoadedTexturesGlobal[i].IsCubemap)
-            {
-                Material toReturn = new Material(UnityEngine.Shader.Find("Skybox/Cubemap"));
-                toReturn.SetTexture("_Tex", LoadedTexturesGlobal[i].cubemap);
-                RenderSettings.skybox = toReturn;
-                break;
-            }
-        }
-        */
 
         //TODO: we should load a combination of Commands and MVR data when loading the root composite (or instances from root composite)
         //      ... other than that we should just load from Commands
@@ -366,10 +326,7 @@ public class AlienLevelLoader : MonoBehaviour
                 switch (InTexture.Type)
                 {
                     case Textures.AlienTextureType.ENVIRONMENT_MAP:
-
-                        Debug.Log("CubeMAP:" + TexPart.unk1 + " -> " + TexPart.unk2 + " -> " + TexPart.unk3 + " -> " + TexPart.unk4 + " -> " + InTexture.Type + " -> " + InTexture.UnknownTexThing);
-
-                        tex.Cubemap = new Cubemap((int)textureDims.x, format, true);
+                        tex.Cubemap = new Cubemap((int)textureDims.x, format, false);
                         tex.Cubemap.name = InTexture.Name;
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveX);
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeX);
@@ -377,7 +334,7 @@ public class AlienLevelLoader : MonoBehaviour
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeY);
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.PositiveZ);
                         tex.Cubemap.SetPixelData(tempReader.ReadBytes(textureLength / 6), 0, CubemapFace.NegativeZ);
-                        tex.Cubemap.Apply();
+                        tex.Cubemap.Apply(false, true);
                         break;
                     default:
                         tex.Texture = new Texture2D((int)textureDims[0], (int)textureDims[1], format, mipLevels, true);
