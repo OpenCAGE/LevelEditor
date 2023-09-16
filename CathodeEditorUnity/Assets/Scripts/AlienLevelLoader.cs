@@ -82,34 +82,25 @@ public class AlienLevelLoader : MonoBehaviour
         for (int i = 0; i < _levelContent.EnvironmentMap.Entries.Count; i++)
             if (_levelContent.EnvironmentMap.Entries[i].EnvMapIndex > cubemapCount)
                 cubemapCount = _levelContent.EnvironmentMap.Entries[i].EnvMapIndex;
-        Debug.Log("map has " + cubemapCount);
 
         //Load cubemaps to reflection probes
         List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
         GameObject probeHolder = new GameObject("Reflection Probes");
-        for (int i = 0; i <  cubemaps.Count; i++)
-        {
-            Cubemap cubemap = GetCubemap(_levelContent.LevelTextures.GetWriteIndex(cubemaps[i]), false);
-            ReflectionProbe probe = new GameObject(cubemaps[i].Name).AddComponent<ReflectionProbe>();
-            probe.transform.parent = probeHolder.transform;
-            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
-            probe.customBakedTexture = cubemap;
-
-            //If we are now past the number of bespoke level cubemaps, we have defined our fallback, which is index -1
-            if (i > cubemapCount)
-            {
-                _envMaps.Add(-1, probe);
-                break;
-            }
-            
-            //If not, this is a bespoke cubemap for the level we should assign to an index
-            _envMaps.Add(i, probe);
-        }
+        for (int i = 0; i < cubemapCount; i++) 
+            LoadCubemapToProbe(probeHolder, cubemaps[i], i);
+        LoadCubemapToProbe(probeHolder, cubemaps[cubemapCount + 2], -1); //Load fallback
 
         if (_loadMoverData)
-        {
             LoadMVR();
-        }
+    }
+    private void LoadCubemapToProbe(GameObject probeHolder, Textures.TEX4 cubemapTex, int i)
+    {
+        Cubemap cubemap = GetCubemap(_levelContent.LevelTextures.GetWriteIndex(cubemapTex), false);
+        ReflectionProbe probe = new GameObject(cubemapTex.Name).AddComponent<ReflectionProbe>();
+        probe.transform.parent = probeHolder.transform;
+        probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
+        probe.customBakedTexture = cubemap;
+        _envMaps.Add(i, probe);
     }
     public void LoadComposite(string name)
     {
