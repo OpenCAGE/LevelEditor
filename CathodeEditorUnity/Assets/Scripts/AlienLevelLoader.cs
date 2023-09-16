@@ -36,7 +36,7 @@ public class AlienLevelLoader : MonoBehaviour
     private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
     private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
 
-    private List<ReflectionProbe> _envMaps = new List<ReflectionProbe>();
+    private Dictionary<int, ReflectionProbe> _envMaps = new Dictionary<int, ReflectionProbe>();
 
     public class TexOrCube
     {
@@ -77,6 +77,13 @@ public class AlienLevelLoader : MonoBehaviour
         _levelName = level;
         _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
 
+        //Get the number of bespoke cubemaps for this level
+        int cubemapCount = -1;
+        for (int i = 0; i < _levelContent.EnvironmentMap.Entries.Count; i++)
+            if (_levelContent.EnvironmentMap.Entries[i].EnvMapIndex > cubemapCount)
+                cubemapCount = _levelContent.EnvironmentMap.Entries[i].EnvMapIndex;
+        Debug.Log("map has " + cubemapCount);
+
         //Load cubemaps to reflection probes
         List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
         GameObject probeHolder = new GameObject("Reflection Probes");
@@ -87,7 +94,16 @@ public class AlienLevelLoader : MonoBehaviour
             probe.transform.parent = probeHolder.transform;
             probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
             probe.customBakedTexture = cubemap;
-            _envMaps.Add(probe);
+
+            //If we are now past the number of bespoke level cubemaps, we have defined our fallback, which is index -1
+            if (i > cubemapCount)
+            {
+                _envMaps.Add(-1, probe);
+                break;
+            }
+            
+            //If not, this is a bespoke cubemap for the level we should assign to an index
+            _envMaps.Add(i, probe);
         }
 
         if (_loadMoverData)
@@ -124,12 +140,11 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
                 MeshRenderer renderer = SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
-                if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
+                if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1) //This defines if we should use an env map or not
                 {
                     renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
                     int index = _levelContent.EnvironmentMap.Entries[_levelContent.ModelsMVR.Entries[i].environmentMapIndex].EnvMapIndex;
-                    if (index != -1)
-                        renderer.probeAnchor = _envMaps[index]?.transform;
+                    renderer.probeAnchor = _envMaps[index]?.transform;
                 }
             }
         }
