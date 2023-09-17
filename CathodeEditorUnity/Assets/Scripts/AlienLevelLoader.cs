@@ -21,12 +21,15 @@ public class AlienLevelLoader : MonoBehaviour
     [Tooltip("Enable this option to load data from the MVR file, which will apply additional instance-specific properties, such as cubemaps and texture overrides. Toggle this setting before hitting play.")]
     [SerializeField] private bool _loadMoverData = false;
 
+    [Tooltip("Enable this to include objects in the scene that are of an unsupported material type (they will still be inactive by default).")]
+    [SerializeField] private bool _populateObjectsWithUnsupportedMaterials = false;
+
     private string _levelName = "BSP_TORRENS";
     public string LevelName => _levelName;
 
     private GameObject _loadedCompositeGO = null;
     private Composite _loadedComposite = null;
-    public string CompositeName => _loadedComposite?.name;
+    public string CompositeIDString => _loadedComposite?.shortGUID.ToByteString();
 
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
@@ -34,6 +37,7 @@ public class AlienLevelLoader : MonoBehaviour
     private Dictionary<int, TexOrCube> _texturesGlobal = new Dictionary<int, TexOrCube>();
     private Dictionary<int, TexOrCube> _texturesLevel = new Dictionary<int, TexOrCube>();
     private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
+    private Dictionary<Material, bool> _materialSupport = new Dictionary<Material, bool>();
     private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
 
     private List<ReflectionProbe> _envMaps = new List<ReflectionProbe>();
@@ -59,6 +63,7 @@ public class AlienLevelLoader : MonoBehaviour
         _texturesGlobal.Clear();
         _texturesLevel.Clear();
         _materials.Clear();
+        _materialSupport.Clear();
         _modelGOs.Clear();
         _envMaps.Clear();
 
@@ -95,16 +100,17 @@ public class AlienLevelLoader : MonoBehaviour
             LoadMVR();
         }
     }
-    public void LoadComposite(string name)
+    public void LoadComposite(ShortGuid guid)
     {
-        if (_loadMoverData) return;
+        if (_loadMoverData || _levelContent == null) return;
 
         if (_loadedCompositeGO != null)
             Destroy(_loadedCompositeGO);
         _loadedCompositeGO = new GameObject(_levelName);
 
-        Debug.Log("Loading composite " + name + "...");
-        LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
+        Composite comp = _levelContent.CommandsPAK.GetComposite(guid);
+        if (comp != null) Debug.Log("Loading composite " + comp.name + "...");
+        LoadCommands(comp);
     }
 
     /* Load MVR data */
@@ -124,7 +130,7 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
                 MeshRenderer renderer = SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
-                if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
+                if (renderer != null && _levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
                 {
                     renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
                     int index = _levelContent.EnvironmentMap.Entries[_levelContent.ModelsMVR.Entries[i].environmentMapIndex].EnvMapIndex;
@@ -255,6 +261,10 @@ public class AlienLevelLoader : MonoBehaviour
             return null;
         }
 
+        Material material = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        if (!_populateObjectsWithUnsupportedMaterials && !_materialSupport[material]) 
+            return null;
+        
         GameObject newModelSpawn = new GameObject();
         if (parent != null) newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
@@ -262,7 +272,8 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
         MeshRenderer renderer = newModelSpawn.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        renderer.sharedMaterial = material;
+        newModelSpawn.SetActive(_materialSupport[material]);
 
         //todo apply mvr colour scale here
 
@@ -405,9 +416,7 @@ public class AlienLevelLoader : MonoBehaviour
                 case ShaderCategory.CA_VOLUME_LIGHT:
                 case ShaderCategory.CA_REFRACTION:
                     toReturn.name += " (NOT RENDERED: " + metadata.shaderCategory.ToString() + ")";
-                    toReturn.color = new Color(0, 0, 0, 0);
-                    toReturn.SetFloat("_Mode", 1.0f);
-                    toReturn.EnableKeyword("_ALPHATEST_ON");
+                    _materialSupport.Add(toReturn, false);
                     return toReturn;
             }
             toReturn.name += " " + metadata.shaderCategory.ToString();
@@ -514,6 +523,7 @@ public class AlienLevelLoader : MonoBehaviour
                 }
             }
 
+            _materialSupport.Add(toReturn, true);
             _materials.Add(MTLIndex, toReturn);
         }
         return _materials[MTLIndex];
