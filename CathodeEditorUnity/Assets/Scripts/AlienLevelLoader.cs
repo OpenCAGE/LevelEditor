@@ -29,7 +29,7 @@ public class AlienLevelLoader : MonoBehaviour
 
     private GameObject _loadedCompositeGO = null;
     private Composite _loadedComposite = null;
-    public string CompositeIDString => _loadedComposite?.shortGUID.ToByteString();
+    public string CompositeIDString => _loadedComposite == null || _loadedComposite.shortGUID.val == null ? "" : _loadedComposite.shortGUID.ToByteString();
 
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
