@@ -477,20 +477,20 @@ public class AlienLevelLoader : MonoBehaviour
                     {
                         Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.Diffuse0] * 4));
                         toReturn.SetColor("_Color", colour);
-                        if (colour.w != 1)
-                        {
-                            toReturn.SetFloat("_Mode", 1.0f);
-                            toReturn.EnableKeyword("_ALPHATEST_ON");
-                        }
-                    }
-                    if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
-                    {
-                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
-                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                        //if (colour.w != 1)
+                        //{
+                        //    toReturn.SetFloat("_Mode", 1.0f);
+                        //    toReturn.EnableKeyword("_ALPHATEST_ON");
+                        //}
                     }
                     if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader, i))
                     {
                         float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
                         toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
                         toReturn.SetFloat("_BumpScale", offset);
                     }
