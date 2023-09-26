@@ -80,7 +80,7 @@ public class AlienLevelLoader : MonoBehaviour
         ResetLevel();
 
         _levelName = level;
-        _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
+        _levelContent = new LevelContent(_client.PathToAI, level);
 
         //Load cubemaps to reflection probes
         List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
@@ -550,53 +550,66 @@ public class GameObjectHolder
 
 public class LevelContent
 {
-    public LevelContent(string levelPath)
+    public LevelContent(string aiPath, string levelName)
     {
+        string levelPath = aiPath + "/DATA/ENV/PRODUCTION/" + levelName + "/";
+        string worldPath = levelPath + "WORLD/";
+        string renderablePath = levelPath + "RENDERABLE/";
+
+        //The game has two hard-coded _PATCH overrides. We should use RENDERABLE from the non-patched folder.
+        switch (levelName)
+        {
+            case "DLC/BSPNOSTROMO_RIPLEY_PATCH":
+            case "DLC/BSPNOSTROMO_TWOTEAMS_PATCH":
+                renderablePath = levelPath.Replace(levelName, levelName.Substring(0, levelName.Length - ("_PATCH").Length)) + "RENDERABLE/";
+                break;
+        }
+
         Parallel.For(0, 14, (i) =>
         {
             switch (i)
             {
                 case 0:
-                    ModelsMVR = new Movers(levelPath + "/WORLD/MODELS.MVR");
+                    ModelsMVR = new Movers(worldPath + "MODELS.MVR");
                     break;
                 case 1:
-                    CommandsPAK = new Commands(levelPath + "/WORLD/COMMANDS.PAK");
+                    CommandsPAK = new Commands(worldPath + "COMMANDS.PAK");
                     break;
                 case 2:
-                    RenderableREDS = new RenderableElements(levelPath + "/WORLD/REDS.BIN");
+                    RenderableREDS = new RenderableElements(worldPath + "REDS.BIN");
                     break;
                 case 3:
-                    ResourcesBIN = new CATHODE.Resources(levelPath + "/WORLD/RESOURCES.BIN");
+                    ResourcesBIN = new CATHODE.Resources(worldPath + "RESOURCES.BIN");
                     break;
                 case 4:
-                    PhysicsMap = new PhysicsMaps(levelPath + "/WORLD/PHYSICS.MAP");
+                    PhysicsMap = new PhysicsMaps(worldPath + "PHYSICS.MAP");
                     break;
                 case 5:
-                    EnvironmentMap = new EnvironmentMaps(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
+                    EnvironmentMap = new EnvironmentMaps(worldPath + "ENVIRONMENTMAP.BIN");
                     break;
                 case 6:
-                    CollisionMap = new CollisionMaps(levelPath + "/WORLD/COLLISION.MAP");
+                    CollisionMap = new CollisionMaps(worldPath + "COLLISION.MAP");
                     break;
                 case 7:
-                    EnvironmentAnimation = new EnvironmentAnimations(levelPath + "/WORLD/ENVIRONMENT_ANIMATION.DAT");
+                    EnvironmentAnimation = new EnvironmentAnimations(worldPath + "ENVIRONMENT_ANIMATION.DAT");
                     break;
                 case 8:
-                    ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
+                    ModelsCST = File.ReadAllBytes(renderablePath + "LEVEL_MODELS.CST");
                     break;
                 case 9:
-                    ModelsMTL = new Materials(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
+                    ModelsMTL = new Materials(renderablePath + "LEVEL_MODELS.MTL");
                     break;
                 case 10:
-                    ModelsPAK = new Models(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
+                    ModelsPAK = new Models(renderablePath + "LEVEL_MODELS.PAK");
                     break;
                 case 11:
-                    ShadersPAK = new ShadersPAK(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
+                    ShadersPAK = new ShadersPAK(renderablePath + "LEVEL_SHADERS_DX11.PAK");
                     break;
                 case 12:
-                    ShadersIDXRemap = new IDXRemap(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
+                    ShadersIDXRemap = new IDXRemap(renderablePath + "LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
                     break;
                 case 13:
-                    LevelTextures = new Textures(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK");
+                    LevelTextures = new Textures(renderablePath + "LEVEL_TEXTURES.ALL.PAK");
                     break;
             }
         });
