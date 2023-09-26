@@ -8,6 +8,7 @@ using UnityEditor.PackageManager;
 using UnityEngine;
 using WebSocketSharp;
 using System.Numerics;
+using CATHODE.Scripting;
 
 public class WebsocketClient : MonoBehaviour
 {
@@ -48,8 +49,8 @@ public class WebsocketClient : MonoBehaviour
         }
         if (shouldLoadComposite)
         {
-            if (loader.CompositeName != compositeName)
-                loader.LoadComposite(compositeName);
+            if (loader.CompositeIDString != compositeName)
+                loader.LoadComposite(new ShortGuid(compositeName));
             shouldLoadComposite = false;
         }
         if (shouldRepositionCam)
@@ -110,7 +111,9 @@ public class WebsocketClient : MonoBehaviour
                 {
                     mutex.WaitOne();
                     compositeName = packet.composite_name;
+                    levelToLoad = packet.level_name;
                     shouldLoadComposite = true;
+                    shouldLoad = true;
                     mutex.ReleaseMutex();
                     break;
                 }
@@ -185,7 +188,7 @@ public class WebsocketClient : MonoBehaviour
     }
 
     //TODO: Keep this in sync with clients
-    public const int VERSION = 2;
+    public const int VERSION = 3;
     public enum MessageType
     {
         SYNC_VERSION,

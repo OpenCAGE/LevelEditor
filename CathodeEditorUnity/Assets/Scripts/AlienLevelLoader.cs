@@ -21,12 +21,15 @@ public class AlienLevelLoader : MonoBehaviour
     [Tooltip("Enable this option to load data from the MVR file, which will apply additional instance-specific properties, such as cubemaps and texture overrides. Toggle this setting before hitting play.")]
     [SerializeField] private bool _loadMoverData = false;
 
+    [Tooltip("Enable this to include objects in the scene that are of an unsupported material type (they will still be inactive by default).")]
+    [SerializeField] private bool _populateObjectsWithUnsupportedMaterials = false;
+
     private string _levelName = "BSP_TORRENS";
     public string LevelName => _levelName;
 
     private GameObject _loadedCompositeGO = null;
     private Composite _loadedComposite = null;
-    public string CompositeName => _loadedComposite?.name;
+    public string CompositeIDString => _loadedComposite == null || _loadedComposite.shortGUID.val == null ? "" : _loadedComposite.shortGUID.ToByteString();
 
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
@@ -34,6 +37,7 @@ public class AlienLevelLoader : MonoBehaviour
     private Dictionary<int, TexOrCube> _texturesGlobal = new Dictionary<int, TexOrCube>();
     private Dictionary<int, TexOrCube> _texturesLevel = new Dictionary<int, TexOrCube>();
     private Dictionary<int, Material> _materials = new Dictionary<int, Material>();
+    private Dictionary<Material, bool> _materialSupport = new Dictionary<Material, bool>();
     private Dictionary<int, GameObjectHolder> _modelGOs = new Dictionary<int, GameObjectHolder>();
 
     private List<ReflectionProbe> _envMaps = new List<ReflectionProbe>();
@@ -59,6 +63,7 @@ public class AlienLevelLoader : MonoBehaviour
         _texturesGlobal.Clear();
         _texturesLevel.Clear();
         _materials.Clear();
+        _materialSupport.Clear();
         _modelGOs.Clear();
         _envMaps.Clear();
 
@@ -75,7 +80,7 @@ public class AlienLevelLoader : MonoBehaviour
         ResetLevel();
 
         _levelName = level;
-        _levelContent = new LevelContent(_client.PathToAI + "/DATA/ENV/PRODUCTION/" + level);
+        _levelContent = new LevelContent(_client.PathToAI, level);
 
         //Load cubemaps to reflection probes
         List<Textures.TEX4> cubemaps = _levelContent.LevelTextures.Entries.Where(o => o.Type == Textures.AlienTextureType.ENVIRONMENT_MAP).ToList();
@@ -95,16 +100,17 @@ public class AlienLevelLoader : MonoBehaviour
             LoadMVR();
         }
     }
-    public void LoadComposite(string name)
+    public void LoadComposite(ShortGuid guid)
     {
-        if (_loadMoverData) return;
+        if (_loadMoverData || _levelContent == null) return;
 
         if (_loadedCompositeGO != null)
             Destroy(_loadedCompositeGO);
         _loadedCompositeGO = new GameObject(_levelName);
 
-        Debug.Log("Loading composite " + name + "...");
-        LoadCommands(_levelContent.CommandsPAK.GetComposite(name));
+        Composite comp = _levelContent.CommandsPAK.GetComposite(guid);
+        if (comp != null) Debug.Log("Loading composite " + comp.name + "...");
+        LoadCommands(comp);
     }
 
     /* Load MVR data */
@@ -124,7 +130,7 @@ public class AlienLevelLoader : MonoBehaviour
             {
                 RenderableElements.Element RenderableElement = _levelContent.RenderableREDS.Entries[(int)_levelContent.ModelsMVR.Entries[i].renderableElementIndex + x];
                 MeshRenderer renderer = SpawnModel(RenderableElement.ModelIndex, RenderableElement.MaterialIndex, thisParent);
-                if (_levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
+                if (renderer != null && _levelContent.ModelsMVR.Entries[i].environmentMapIndex != -1)
                 {
                     renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
                     int index = _levelContent.EnvironmentMap.Entries[_levelContent.ModelsMVR.Entries[i].environmentMapIndex].EnvMapIndex;
@@ -255,6 +261,10 @@ public class AlienLevelLoader : MonoBehaviour
             return null;
         }
 
+        Material material = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        if (!_populateObjectsWithUnsupportedMaterials && !_materialSupport[material]) 
+            return null;
+        
         GameObject newModelSpawn = new GameObject();
         if (parent != null) newModelSpawn.transform.parent = parent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
@@ -262,7 +272,8 @@ public class AlienLevelLoader : MonoBehaviour
         newModelSpawn.name = holder.Name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
         MeshRenderer renderer = newModelSpawn.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
+        renderer.sharedMaterial = material;
+        newModelSpawn.SetActive(_materialSupport[material]);
 
         //todo apply mvr colour scale here
 
@@ -405,9 +416,7 @@ public class AlienLevelLoader : MonoBehaviour
                 case ShaderCategory.CA_VOLUME_LIGHT:
                 case ShaderCategory.CA_REFRACTION:
                     toReturn.name += " (NOT RENDERED: " + metadata.shaderCategory.ToString() + ")";
-                    toReturn.color = new Color(0, 0, 0, 0);
-                    toReturn.SetFloat("_Mode", 1.0f);
-                    toReturn.EnableKeyword("_ALPHATEST_ON");
+                    _materialSupport.Add(toReturn, false);
                     return toReturn;
             }
             toReturn.name += " " + metadata.shaderCategory.ToString();
@@ -477,20 +486,20 @@ public class AlienLevelLoader : MonoBehaviour
                     {
                         Vector4 colour = LoadFromCST<Vector4>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.Diffuse0] * 4));
                         toReturn.SetColor("_Color", colour);
-                        if (colour.w != 1)
-                        {
-                            toReturn.SetFloat("_Mode", 1.0f);
-                            toReturn.EnableKeyword("_ALPHATEST_ON");
-                        }
-                    }
-                    if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
-                    {
-                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
-                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                        //if (colour.w != 1)
+                        //{
+                        //    toReturn.SetFloat("_Mode", 1.0f);
+                        //    toReturn.EnableKeyword("_ALPHATEST_ON");
+                        //}
                     }
                     if (CSTIndexValid(metadata.cstIndexes.DiffuseMap0UVMultiplier, ref Shader, i))
                     {
                         float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.DiffuseMap0UVMultiplier] * 4));
+                        toReturn.SetTextureScale("_MainTex", new Vector2(offset, offset));
+                    }
+                    if (CSTIndexValid(metadata.cstIndexes.NormalMap0UVMultiplier, ref Shader, i))
+                    {
+                        float offset = LoadFromCST<float>(cstReader, baseOffset + (Shader.CSTLinks[i][metadata.cstIndexes.NormalMap0UVMultiplier] * 4));
                         toReturn.SetTextureScale("_BumpMap", new Vector2(offset, offset));
                         toReturn.SetFloat("_BumpScale", offset);
                     }
@@ -514,6 +523,7 @@ public class AlienLevelLoader : MonoBehaviour
                 }
             }
 
+            _materialSupport.Add(toReturn, true);
             _materials.Add(MTLIndex, toReturn);
         }
         return _materials[MTLIndex];
@@ -540,53 +550,66 @@ public class GameObjectHolder
 
 public class LevelContent
 {
-    public LevelContent(string levelPath)
+    public LevelContent(string aiPath, string levelName)
     {
+        string levelPath = aiPath + "/DATA/ENV/PRODUCTION/" + levelName + "/";
+        string worldPath = levelPath + "WORLD/";
+        string renderablePath = levelPath + "RENDERABLE/";
+
+        //The game has two hard-coded _PATCH overrides. We should use RENDERABLE from the non-patched folder.
+        switch (levelName)
+        {
+            case "DLC/BSPNOSTROMO_RIPLEY_PATCH":
+            case "DLC/BSPNOSTROMO_TWOTEAMS_PATCH":
+                renderablePath = levelPath.Replace(levelName, levelName.Substring(0, levelName.Length - ("_PATCH").Length)) + "RENDERABLE/";
+                break;
+        }
+
         Parallel.For(0, 14, (i) =>
         {
             switch (i)
             {
                 case 0:
-                    ModelsMVR = new Movers(levelPath + "/WORLD/MODELS.MVR");
+                    ModelsMVR = new Movers(worldPath + "MODELS.MVR");
                     break;
                 case 1:
-                    CommandsPAK = new Commands(levelPath + "/WORLD/COMMANDS.PAK");
+                    CommandsPAK = new Commands(worldPath + "COMMANDS.PAK");
                     break;
                 case 2:
-                    RenderableREDS = new RenderableElements(levelPath + "/WORLD/REDS.BIN");
+                    RenderableREDS = new RenderableElements(worldPath + "REDS.BIN");
                     break;
                 case 3:
-                    ResourcesBIN = new CATHODE.Resources(levelPath + "/WORLD/RESOURCES.BIN");
+                    ResourcesBIN = new CATHODE.Resources(worldPath + "RESOURCES.BIN");
                     break;
                 case 4:
-                    PhysicsMap = new PhysicsMaps(levelPath + "/WORLD/PHYSICS.MAP");
+                    PhysicsMap = new PhysicsMaps(worldPath + "PHYSICS.MAP");
                     break;
                 case 5:
-                    EnvironmentMap = new EnvironmentMaps(levelPath + "/WORLD/ENVIRONMENTMAP.BIN");
+                    EnvironmentMap = new EnvironmentMaps(worldPath + "ENVIRONMENTMAP.BIN");
                     break;
                 case 6:
-                    CollisionMap = new CollisionMaps(levelPath + "/WORLD/COLLISION.MAP");
+                    CollisionMap = new CollisionMaps(worldPath + "COLLISION.MAP");
                     break;
                 case 7:
-                    EnvironmentAnimation = new EnvironmentAnimations(levelPath + "/WORLD/ENVIRONMENT_ANIMATION.DAT");
+                    EnvironmentAnimation = new EnvironmentAnimations(worldPath + "ENVIRONMENT_ANIMATION.DAT");
                     break;
                 case 8:
-                    ModelsCST = File.ReadAllBytes(levelPath + "/RENDERABLE/LEVEL_MODELS.CST");
+                    ModelsCST = File.ReadAllBytes(renderablePath + "LEVEL_MODELS.CST");
                     break;
                 case 9:
-                    ModelsMTL = new Materials(levelPath + "/RENDERABLE/LEVEL_MODELS.MTL");
+                    ModelsMTL = new Materials(renderablePath + "LEVEL_MODELS.MTL");
                     break;
                 case 10:
-                    ModelsPAK = new Models(levelPath + "/RENDERABLE/LEVEL_MODELS.PAK");
+                    ModelsPAK = new Models(renderablePath + "LEVEL_MODELS.PAK");
                     break;
                 case 11:
-                    ShadersPAK = new ShadersPAK(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11.PAK");
+                    ShadersPAK = new ShadersPAK(renderablePath + "LEVEL_SHADERS_DX11.PAK");
                     break;
                 case 12:
-                    ShadersIDXRemap = new IDXRemap(levelPath + "/RENDERABLE/LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
+                    ShadersIDXRemap = new IDXRemap(renderablePath + "LEVEL_SHADERS_DX11_IDX_REMAP.PAK");
                     break;
                 case 13:
-                    LevelTextures = new Textures(levelPath + "/RENDERABLE/LEVEL_TEXTURES.ALL.PAK");
+                    LevelTextures = new Textures(renderablePath + "LEVEL_TEXTURES.ALL.PAK");
                     break;
             }
         });
