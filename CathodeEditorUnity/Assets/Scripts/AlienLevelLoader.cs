@@ -179,9 +179,8 @@ public class AlienLevelLoader : MonoBehaviour
 
                     //Work out our position, accounting for overrides
                     Vector3 position, rotation;
-                    AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
-                    GetEntityTransform(ovrride, out position, out rotation);
-                    if (position == Vector3.zero && rotation == Vector3.zero)
+                    AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == (o.alias.path[o.alias.path.Count - 1] == ShortGuid.Invalid ? 2 : 1) && o.alias.path[0] == function.shortGUID);
+                    if (!GetEntityTransform(ovrride, out position, out rotation))
                         GetEntityTransform(function, out position, out rotation);
 
                     //Continue
@@ -231,11 +230,11 @@ public class AlienLevelLoader : MonoBehaviour
             }
         }
     }
-    void GetEntityTransform(Entity entity, out Vector3 position, out Vector3 rotation)
+    bool GetEntityTransform(Entity entity, out Vector3 position, out Vector3 rotation)
     {
         position = Vector3.zero;
         rotation = Vector3.zero;
-        if (entity == null) return;
+        if (entity == null) return false;
 
         Parameter positionParam = entity.GetParameter("position");
         if (positionParam != null && positionParam.content != null)
@@ -246,9 +245,10 @@ public class AlienLevelLoader : MonoBehaviour
                     cTransform transform = (cTransform)positionParam.content;
                     position = transform.position;
                     rotation = transform.rotation;
-                    break;
+                    return true;
             }
         }
+        return false;
     }
 
     #region Asset Handlers
