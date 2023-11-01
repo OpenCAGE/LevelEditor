@@ -4,17 +4,16 @@ using UnityEngine;
 using UnityEditor;
 using System.Linq;
 using UnityEditor.SceneManagement;
+using System.IO;
 
 public class OpenCAGEWindow : EditorWindow
 {
     private static AlienLevelLoader _loader = null;
-
-    private static Vector2 scrollPos;
+    private static Vector2 _scrollPos;
 
     [MenuItem("Window/OpenCAGE Utils")]
     public static void ShowWindow()
     {
-        EditorSceneManager.OpenScene("Assets/Scene.unity");
         FindObjects();
 
         EditorWindow ew = GetWindow(typeof(OpenCAGEWindow), false, "OpenCAGE Utils", true);
@@ -38,7 +37,7 @@ public class OpenCAGEWindow : EditorWindow
     {
         if (!FindObjects()) return;
 
-        scrollPos = GUILayout.BeginScrollView(scrollPos, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+        _scrollPos = GUILayout.BeginScrollView(_scrollPos, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
 
         EditorGUILayout.Space();
 
@@ -80,5 +79,18 @@ public class OpenCAGEWindow : EditorWindow
         */
 
         GUILayout.EndScrollView();
+    }
+}
+
+[InitializeOnLoad]
+public class Startup
+{
+    static Startup()
+    {
+        if (!Application.isPlaying)
+        {
+            EditorSceneManager.OpenScene("Assets/Scene.unity");
+            EditorUtility.LoadWindowLayout(Directory.GetCurrentDirectory() + "/../OpenCAGE.wlt");
+        }
     }
 }
