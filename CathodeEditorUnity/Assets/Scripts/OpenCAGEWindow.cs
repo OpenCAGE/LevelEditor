@@ -25,10 +25,7 @@ public class OpenCAGEWindow : EditorWindow
     private static bool FindObjects()
     {
         if (_loader == null)
-        {
             _loader = FindObjectOfType<AlienLevelLoader>();
-            //_loader.OnLoaded += ReloadUI;
-        }
 
         return _loader != null;
     }
@@ -43,22 +40,10 @@ public class OpenCAGEWindow : EditorWindow
 
         if (Application.isPlaying)
         {
-            if (GUILayout.Button("Disconnect From Commands Editor"))
-            {
-                EditorApplication.ExitPlaymode();
-            }
-
             GUILayout.BeginVertical("", GUI.skin.box);
             EditorGUILayout.LabelField("Level: " + _loader.LevelName, EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Composite: " + _loader.CompositeName, EditorStyles.boldLabel);
             GUILayout.EndVertical();
-        }
-        else
-        {
-            if (GUILayout.Button("Connect To Commands Editor"))
-            {
-                EditorApplication.EnterPlaymode();
-            }
         }
 
         //EditorGUILayout.Space();
@@ -87,10 +72,20 @@ public class Startup
 {
     static Startup()
     {
-        if (!Application.isPlaying)
+        if (!EditorApplication.isPlaying)
+        {
+            EditorApplication.EnterPlaymode();
+            return;
+        }
+
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+        try
         {
             EditorSceneManager.OpenScene("Assets/Scene.unity");
+            SceneView.lastActiveSceneView.drawGizmos = false;
             EditorUtility.LoadWindowLayout(Directory.GetCurrentDirectory() + "/../OpenCAGE.wlt");
         }
+        catch { } 
     }
 }
