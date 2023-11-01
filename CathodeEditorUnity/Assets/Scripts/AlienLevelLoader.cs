@@ -14,22 +14,26 @@ using UnityEngine.UIElements;
 using System;
 using Newtonsoft.Json;
 using System.Reflection;
+using UnityEditor;
 
 public class AlienLevelLoader : MonoBehaviour
 {
     //Support soon for combined Commands and Mover - but for now, lets let people toggle 
     [Tooltip("Enable this option to load data from the MVR file, which will apply additional instance-specific properties, such as cubemaps and texture overrides. Toggle this setting before hitting play.")]
-    [SerializeField] private bool _loadMoverData = false;
+    [SerializeField] [HideInInspector] private bool _loadMoverData = false;
 
     [Tooltip("Enable this to include objects in the scene that are of an unsupported material type (they will still be inactive by default).")]
     [SerializeField] private bool _populateObjectsWithUnsupportedMaterials = false;
 
-    private string _levelName = "BSP_TORRENS";
+    public Action OnLoaded;
+
+    private string _levelName = "";
     public string LevelName => _levelName;
 
     private GameObject _loadedCompositeGO = null;
     private Composite _loadedComposite = null;
     public string CompositeIDString => _loadedComposite == null || _loadedComposite.shortGUID.val == null ? "" : _loadedComposite.shortGUID.ToByteString();
+    public string CompositeName => _loadedComposite == null ? "" : _loadedComposite.name;
 
     private LevelContent _levelContent = null;
     private Textures _globalTextures = null;
@@ -107,16 +111,20 @@ public class AlienLevelLoader : MonoBehaviour
         if (_loadedCompositeGO != null)
             Destroy(_loadedCompositeGO);
         _loadedCompositeGO = new GameObject(_levelName);
+        Selection.activeGameObject = _loadedCompositeGO;
 
         Composite comp = _levelContent.CommandsPAK.GetComposite(guid);
-        if (comp != null) Debug.Log("Loading composite " + comp.name + "...");
+        Debug.Log("Loading composite " + comp?.name + "...");
         LoadCommands(comp);
+
+        OnLoaded?.Invoke();
     }
 
     /* Load MVR data */
     private void LoadMVR()
     {
         _loadedCompositeGO = new GameObject(_levelName);
+        Selection.activeGameObject = _loadedCompositeGO;
 
         for (int i = 0; i < _levelContent.ModelsMVR.Entries.Count; i++)
         {
@@ -139,6 +147,8 @@ public class AlienLevelLoader : MonoBehaviour
                 }
             }
         }
+
+        OnLoaded?.Invoke();
     }
 
     /* Load Commands data */
@@ -150,7 +160,7 @@ public class AlienLevelLoader : MonoBehaviour
     void ParseComposite(Composite composite, GameObject parentGO, Vector3 parentPos, Quaternion parentRot, List<AliasEntity> aliases)
     {
         if (composite == null) return;
-        GameObject compositeGO = new GameObject(composite.name);
+        GameObject compositeGO = new GameObject("[COMPOSITE INSTANCE] " + composite.name);
         compositeGO.transform.parent = parentGO.transform;
         compositeGO.transform.SetLocalPositionAndRotation(parentPos, parentRot);
 
@@ -194,11 +204,10 @@ public class AlienLevelLoader : MonoBehaviour
                 //Work out our position, accounting for overrides
                 Vector3 position, rotation;
                 AliasEntity ovrride = trimmedAliases.FirstOrDefault(o => o.alias.path.Count == 1 && o.alias.path[0] == function.shortGUID);
-                GetEntityTransform(ovrride, out position, out rotation);
-                if (position == Vector3.zero && rotation == Vector3.zero)
+                if (!GetEntityTransform(ovrride, out position, out rotation))
                     GetEntityTransform(function, out position, out rotation);
 
-                GameObject nodeModel = new GameObject(function.shortGUID.ToByteString());
+                GameObject nodeModel = new GameObject("[FUNCTION ENTITY] [ModelReference] " + function.shortGUID.ToByteString());
                 nodeModel.transform.parent = compositeGO.transform;
                 nodeModel.transform.SetLocalPositionAndRotation(position, Quaternion.Euler(rotation));
 
@@ -251,6 +260,24 @@ public class AlienLevelLoader : MonoBehaviour
         return false;
     }
 
+    /* Force select the function entity if someone clicks on the resource */
+    private GameObject _prevSelection = null;
+    private void Update()
+    {
+        if (_prevSelection != Selection.activeGameObject)
+        {
+            if (Selection.activeGameObject != null)
+            {
+                string entityName = Selection.activeGameObject.name;
+                if (entityName.Length > ("[RESOURCE]").Length && entityName.Substring(0, ("[RESOURCE]").Length) == "[RESOURCE]")
+                {
+                    Selection.activeGameObject = Selection.activeGameObject.transform.parent.transform.parent.gameObject;
+                }
+            }
+            _prevSelection = Selection.activeGameObject;
+        }
+    }
+
     #region Asset Handlers
     private MeshRenderer SpawnModel(int binIndex, int mtlIndex, GameObject parent)
     {
@@ -264,12 +291,20 @@ public class AlienLevelLoader : MonoBehaviour
         Material material = GetMaterial((mtlIndex == -1) ? holder.DefaultMaterial : mtlIndex);
         if (!_populateObjectsWithUnsupportedMaterials && !_materialSupport[material]) 
             return null;
-        
+
+        //Hack: we spawn the resource in a child of the GameObject hidden in the hierarchy, so that it's selectable in editor still
+        GameObject newModelSpawnParent = new GameObject();
+        if (parent != null) newModelSpawnParent.transform.parent = parent.transform;
+        newModelSpawnParent.transform.localPosition = Vector3.zero;
+        newModelSpawnParent.transform.localRotation = Quaternion.identity;
+        newModelSpawnParent.name = "[RESOURCE] " + holder.Name;
+        newModelSpawnParent.hideFlags = HideFlags.HideInHierarchy;
+
         GameObject newModelSpawn = new GameObject();
-        if (parent != null) newModelSpawn.transform.parent = parent.transform;
+        newModelSpawn.transform.parent = newModelSpawnParent.transform;
         newModelSpawn.transform.localPosition = Vector3.zero;
         newModelSpawn.transform.localRotation = Quaternion.identity;
-        newModelSpawn.name = holder.Name;
+        newModelSpawn.name = newModelSpawnParent.name;
         newModelSpawn.AddComponent<MeshFilter>().sharedMesh = holder.MainMesh;
         MeshRenderer renderer = newModelSpawn.AddComponent<MeshRenderer>();
         renderer.sharedMaterial = material;
