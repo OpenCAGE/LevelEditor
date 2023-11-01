@@ -15,12 +15,13 @@ using System;
 using Newtonsoft.Json;
 using System.Reflection;
 using UnityEditor;
+using System.Collections;
 
 public class AlienLevelLoader : MonoBehaviour
 {
     //Support soon for combined Commands and Mover - but for now, lets let people toggle 
     [Tooltip("Enable this option to load data from the MVR file, which will apply additional instance-specific properties, such as cubemaps and texture overrides. Toggle this setting before hitting play.")]
-    [SerializeField] [HideInInspector] private bool _loadMoverData = false;
+    [SerializeField] private bool _loadMoverData = false;
 
     [Tooltip("Enable this to include objects in the scene that are of an unsupported material type (they will still be inactive by default).")]
     [SerializeField] private bool _populateObjectsWithUnsupportedMaterials = false;
@@ -54,9 +55,18 @@ public class AlienLevelLoader : MonoBehaviour
 
     private WebsocketClient _client;
 
-    void Start()
+    IEnumerator Start()
     {
         _client = GetComponent<WebsocketClient>();
+
+        yield return new WaitForEndOfFrame();
+
+        try
+        {
+            SceneView.FocusWindowIfItsOpen(typeof(SceneView));
+            EditorWindow.GetWindow(typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView")).Close();
+        }
+        catch { }
     }
 
     private void ResetLevel()
